@@ -26,11 +26,15 @@ type TurnPhase
     | ChoosePlatformDestinationPhase
 
 
+type alias Platform =
+    ( Int, Int )
+
+
 type alias Model =
     { currentPlayer : Player
-    , board : Set ( Int, Int )
+    , board : Set Platform
     , phase : TurnPhase
-    , selectedPlatform : Maybe ( Int, Int )
+    , selectedPlatform : Maybe Platform
     }
 
 
@@ -44,7 +48,7 @@ initialModel =
 
 
 type Msg
-    = SelectPlatform ( Int, Int )
+    = SelectPlatform Platform
     | ChoosePlatformDestination
 
 
@@ -63,12 +67,12 @@ update msg model =
             model
 
 
-platformCircleView : ( Int, Int ) -> G.Shape Msg
+platformCircleView : Platform -> G.Shape Msg
 platformCircleView ( x, y ) =
     G.circle 50 |> G.filled G.yellow |> G.move ( 100 * (toFloat x + cos (pi / 3) * toFloat y), 100 * sin (pi / 3) * toFloat y )
 
 
-platformView : TurnPhase -> ( Int, Int ) -> G.Shape Msg
+platformView : TurnPhase -> Platform -> G.Shape Msg
 platformView turnPhase ( x, y ) =
     if turnPhase == SelectPlatformPhase then
         platformCircleView ( x, y ) |> G.notifyTap (SelectPlatform ( x, y ))
