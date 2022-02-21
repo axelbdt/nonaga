@@ -1,6 +1,8 @@
 module Main exposing (main)
 
+import Array
 import Basics exposing (cos, sin)
+import Dict exposing (Dict)
 import GraphicSVG as G
 import GraphicSVG.App exposing (NotificationsApp, notificationsApp)
 import Set exposing (Set, intersect)
@@ -74,20 +76,57 @@ type alias Model =
     { currentPlayer : Player
     , board : Board
     , selectedPlatform : Maybe Platform
+    , redPawns : Set Platform
+    , blackPawns : Set Platform
     }
+
+
+initialBoard : Board
+initialBoard =
+    Set.fromList
+        [ ( 0, 0 )
+        , ( 1, 0 )
+        , ( 0, 1 )
+        , ( 1, 1 )
+        , ( -1, 0 )
+        , ( 0, -1 )
+        , ( -1, -1 )
+        , ( 1, -1 )
+        , ( -1, 1 )
+        , ( 2, 0 )
+        , ( -2, 0 )
+        , ( 0, -2 )
+        , ( 2, -2 )
+        , ( -2, 2 )
+        , ( 0, 2 )
+        , ( -2, 1 )
+        , ( -1, 2 )
+        , ( 2, -1 )
+        , ( 1, -2 )
+        ]
+
+
+initialRedPawns =
+    Set.fromList [ ( 0, -2 ), ( 2, -2 ), ( 2, 0 ) ]
+
+
+initialBlackPawns =
+    Set.fromList [ ( -2, 0 ), ( 0, 2 ), ( 2, -2 ) ]
 
 
 initialModel : Model
 initialModel =
     { currentPlayer = Red
-    , board = Set.fromList [ ( 0, 0 ), ( 1, 0 ), ( 0, 1 ), ( 1, 1 ), ( -1, 0 ), ( 0, -1 ), ( -1, -1 ), ( 1, -1 ), ( -1, 1 ) ]
-    , selectedPlatform = Just ( 1, 1 )
+    , board = initialBoard
+    , selectedPlatform = Nothing
+    , redPawns = initialRedPawns
+    , blackPawns = initialBlackPawns
     }
 
 
 type Msg
     = SelectPlatform Platform
-    | ChoosePlatformDestination
+    | ChoosePlatformDestination Platform Platform
 
 
 update : Msg -> Model -> Model
@@ -96,8 +135,12 @@ update msg model =
         SelectPlatform platform ->
             { model | selectedPlatform = Just platform }
 
-        ChoosePlatformDestination ->
-            model
+        ChoosePlatformDestination selected destination ->
+            let
+                newBoard =
+                    model.board |> Set.remove selected |> Set.insert destination
+            in
+            { model | selectedPlatform = Nothing, board = newBoard }
 
 
 placeShape : ( Int, Int ) -> G.Shape Msg -> G.Shape Msg
@@ -106,10 +149,12 @@ placeShape ( x, y ) shape =
         |> G.move ( 100 * (toFloat x + cos (pi / 3) * toFloat y), 100 * sin (pi / 3) * toFloat y )
 
 
+selectedPlatformShape : G.Shape Msg
 selectedPlatformShape =
     G.circle 50 |> G.filled G.orange
 
 
+platformShape : G.Shape Msg
 platformShape =
     G.circle 50
         |> G.filled G.yellow
@@ -141,9 +186,9 @@ platformView board selectedPlatform platform =
         platformCircleView selectedPlatform platform
 
 
-destinationView : Platform -> G.Shape Msg
-destinationView destination =
-    platformCircleView Nothing destination |> G.makeTransparent 0.6
+destinationView : Platform -> Platform -> G.Shape Msg
+destinationView selected destination =
+    platformCircleView Nothing destination |> G.makeTransparent 0.6 |> G.notifyTap (ChoosePlatformDestination selected destination)
 
 
 boardView : Board -> Maybe Platform -> List (G.Shape Msg)
@@ -158,7 +203,7 @@ boardView board selectedPlatform =
                 Just selected ->
                     findDestinations board selected
                         |> Set.toList
-                        |> List.map destinationView
+                        |> List.map (destinationView selected)
             )
 
 
