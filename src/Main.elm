@@ -31,6 +31,10 @@ type alias Board =
     Set Platform
 
 
+type alias Pawns =
+    Dict Platform Player
+
+
 neighbors : Platform -> Set Platform
 neighbors ( x, y ) =
     Set.fromList
@@ -50,9 +54,9 @@ countNeighboringPlatforms board platform =
         |> Set.size
 
 
-isSelectable : Board -> Platform -> Bool
-isSelectable board platform =
-    countNeighboringPlatforms board platform < 5
+isSelectable : Board -> Pawns -> Platform -> Bool
+isSelectable board pawns platform =
+    countNeighboringPlatforms board platform < 5 && not (Dict.member platform pawns)
 
 
 isDestination : Board -> Platform -> Platform -> Bool
@@ -76,8 +80,7 @@ type alias Model =
     { currentPlayer : Player
     , board : Board
     , selectedPlatform : Maybe Platform
-    , redPawns : Set Platform
-    , blackPawns : Set Platform
+    , pawns : Dict Platform Player
     }
 
 
@@ -106,12 +109,16 @@ initialBoard =
         ]
 
 
-initialRedPawns =
-    Set.fromList [ ( 0, -2 ), ( 2, -2 ), ( 2, 0 ) ]
+zipWithPlayer : Player -> List a -> List ( a, Player )
+zipWithPlayer player l =
+    List.map (\x -> ( x, player )) l
 
 
-initialBlackPawns =
-    Set.fromList [ ( -2, 0 ), ( 0, 2 ), ( 2, -2 ) ]
+initialPawns : Dict Platform Player
+initialPawns =
+    zipWithPlayer Red [ ( 0, -2 ), ( -2, 2 ), ( 2, 0 ) ]
+        |> List.append (zipWithPlayer Black [ ( -2, 0 ), ( 0, 2 ), ( 2, -2 ) ])
+        |> Dict.fromList
 
 
 initialModel : Model
@@ -119,8 +126,7 @@ initialModel =
     { currentPlayer = Red
     , board = initialBoard
     , selectedPlatform = Nothing
-    , redPawns = initialRedPawns
-    , blackPawns = initialBlackPawns
+    , pawns = initialPawns
     }
 
 
@@ -176,9 +182,9 @@ platformCircleView selectedPlatform platform =
         |> placeShape platform
 
 
-platformView : Board -> Maybe Platform -> Platform -> G.Shape Msg
-platformView board selectedPlatform platform =
-    if isSelectable board platform then
+platformView : Board -> Pawns -> Maybe Platform -> Platform -> G.Shape Msg
+platformView board pawns selectedPlatform platform =
+    if isSelectable board pawns platform then
         platformCircleView selectedPlatform platform
             |> G.notifyTap (SelectPlatform platform)
 
@@ -191,10 +197,10 @@ destinationView selected destination =
     platformCircleView Nothing destination |> G.makeTransparent 0.6 |> G.notifyTap (ChoosePlatformDestination selected destination)
 
 
-boardView : Board -> Maybe Platform -> List (G.Shape Msg)
-boardView board selectedPlatform =
+boardView : Board -> Pawns -> Maybe Platform -> List (G.Shape Msg)
+boardView board pawns selectedPlatform =
     Set.toList board
-        |> List.map (platformView board selectedPlatform)
+        |> List.map (platformView board pawns selectedPlatform)
         |> List.append
             (case selectedPlatform of
                 Nothing ->
@@ -207,9 +213,31 @@ boardView board selectedPlatform =
             )
 
 
+color : Player -> G.Color
+color player =
+    case player of
+        Red ->
+            G.red
+
+        Black ->
+            G.black
+
+
+pawnView : Platform -> Player -> G.Shape Msg
+pawnView platform player =
+    G.circle 40 |> G.filled (color player) |> placeShape platform
+
+
+pawnsView : Dict Platform Player -> List (G.Shape Msg)
+pawnsView pawns =
+    Dict.map pawnView pawns
+        |> Dict.values
+
+
 view : Model -> G.Collage Msg
 view model =
-    boardView model.board model.selectedPlatform
+    pawnsView model.pawns
+        |> List.append (boardView model.board model.pawns model.selectedPlatform)
         |> G.collage 1000 1000
 
 
