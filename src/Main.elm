@@ -3,7 +3,7 @@ module Main exposing (main)
 import Basics exposing (cos, sin)
 import GraphicSVG as G
 import GraphicSVG.App exposing (NotificationsApp, notificationsApp)
-import Set exposing (Set)
+import Set exposing (Set, intersect)
 
 
 type Player
@@ -21,11 +21,6 @@ nextPlayer player =
             Red
 
 
-type TurnPhase
-    = SelectPlatformPhase
-    | ChoosePlatformDestinationPhase
-
-
 type alias Platform =
     ( Int, Int )
 
@@ -37,25 +32,33 @@ type alias Board =
 neighbors : Platform -> Set Platform
 neighbors ( x, y ) =
     Set.fromList
-        [ ( x - 1, y - 1 )
-        , ( x - 1, y )
+        [ ( x - 1, y )
         , ( x - 1, y + 1 )
         , ( x, y - 1 )
-        , ( x, y )
         , ( x, y + 1 )
         , ( x + 1, y - 1 )
         , ( x + 1, y )
-        , ( x + 1, y + 1 )
         ]
 
 
+countNeighboringPlatforms : Board -> Platform -> Int
+countNeighboringPlatforms board platform =
+    neighbors platform
+        |> Set.intersect board
+        |> Set.size
+
+
 isDestination : Board -> Platform -> Platform -> Bool
-isDestination board selectedPlatform platform =
-    not (Set.member platform board)
+isDestination board selected platform =
+    let
+        neighborCount =
+            countNeighboringPlatforms (Set.remove selected board) platform
+    in
+    neighborCount >= 2 && neighborCount < 5
 
 
-destinations : Board -> Platform -> Set Platform
-destinations board selectedPlatform =
+findDestinations : Board -> Platform -> Set Platform
+findDestinations board selectedPlatform =
     Set.toList board
         |> List.map neighbors
         |> List.foldl Set.union Set.empty
@@ -65,7 +68,6 @@ destinations board selectedPlatform =
 type alias Model =
     { currentPlayer : Player
     , board : Board
-    , phase : TurnPhase
     , selectedPlatform : Maybe Platform
     }
 
@@ -74,8 +76,7 @@ initialModel : Model
 initialModel =
     { currentPlayer = Red
     , board = Set.fromList [ ( 0, 0 ), ( 1, 0 ), ( 0, 1 ), ( 1, 1 ), ( -1, 0 ), ( 0, -1 ), ( -1, -1 ), ( 1, -1 ), ( -1, 1 ) ]
-    , phase = SelectPlatformPhase
-    , selectedPlatform = Nothing
+    , selectedPlatform = Just ( 1, 1 )
     }
 
 
@@ -86,50 +87,69 @@ type Msg
 
 update : Msg -> Model -> Model
 update msg model =
-    case model.phase of
-        SelectPlatformPhase ->
-            case msg of
-                SelectPlatform platform ->
-                    { model | selectedPlatform = Just platform }
+    case msg of
+        SelectPlatform platform ->
+            { model | selectedPlatform = Just platform }
 
-                ChoosePlatformDestination ->
-                    model
-
-        ChoosePlatformDestinationPhase ->
+        ChoosePlatformDestination ->
             model
 
 
-platformCircleView : Maybe Platform -> Platform -> G.Shape Msg
-platformCircleView selectedPlatform ( x, y ) =
-    (case selectedPlatform of
-        Nothing ->
-            G.circle 50
-                |> G.filled G.yellow
+platformCircleView : Bool -> Platform -> G.Shape Msg
+platformCircleView selected ( x, y ) =
+    (if selected then
+        G.circle 50 |> G.filled G.orange
 
-        Just ( selectedX, selectedY ) ->
-            if selectedX == x && selectedY == y then
-                G.circle 50 |> G.filled G.orange
-
-            else
-                G.circle 50
-                    |> G.filled G.yellow
+     else
+        G.circle 50
+            |> G.filled G.yellow
     )
         |> G.move ( 100 * (toFloat x + cos (pi / 3) * toFloat y), 100 * sin (pi / 3) * toFloat y )
 
 
-platformView : TurnPhase -> Maybe Platform -> Platform -> G.Shape Msg
-platformView turnPhase selectedPlatform platform =
-    if turnPhase == SelectPlatformPhase then
-        platformCircleView selectedPlatform platform |> G.notifyTap (SelectPlatform platform)
+platformView : Maybe Platform -> Platform -> G.Shape Msg
+platformView selectedPlatform platform =
+    (case selectedPlatform of
+        Nothing ->
+            platformCircleView False platform
 
-    else
-        platformCircleView selectedPlatform platform
+        Just selected ->
+            if selected == platform then
+                platformCircleView True platform
+
+            else
+                platformCircleView False platform
+    )
+        |> G.notifyTap (SelectPlatform platform)
+
+
+destinationView : Platform -> G.Shape Msg
+destinationView destination =
+    platformCircleView False destination |> G.makeTransparent 0.6
+
+
+destinationsView : Set Platform -> List (G.Shape Msg)
+destinationsView destinations =
+    List.map destinationView (Set.toList destinations)
+
+
+boardView : Board -> Maybe Platform -> List (G.Shape Msg)
+boardView board selectedPlatform =
+    Set.toList board
+        |> List.map (platformView selectedPlatform)
+        |> List.append
+            (case selectedPlatform of
+                Nothing ->
+                    []
+
+                Just selected ->
+                    destinationsView (findDestinations board selected)
+            )
 
 
 view : Model -> G.Collage Msg
 view model =
-    Set.toList model.board
-        |> List.map (platformView model.phase model.selectedPlatform)
+    boardView model.board model.selectedPlatform
         |> G.collage 1000 1000
 
 
