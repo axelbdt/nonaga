@@ -30,9 +30,41 @@ type alias Platform =
     ( Int, Int )
 
 
+type alias Board =
+    Set Platform
+
+
+neighbors : Platform -> Set Platform
+neighbors ( x, y ) =
+    Set.fromList
+        [ ( x - 1, y - 1 )
+        , ( x - 1, y )
+        , ( x - 1, y + 1 )
+        , ( x, y - 1 )
+        , ( x, y )
+        , ( x, y + 1 )
+        , ( x + 1, y - 1 )
+        , ( x + 1, y )
+        , ( x + 1, y + 1 )
+        ]
+
+
+isDestination : Board -> Platform -> Platform -> Bool
+isDestination board selectedPlatform platform =
+    not (Set.member platform board)
+
+
+destinations : Board -> Platform -> Set Platform
+destinations board selectedPlatform =
+    Set.toList board
+        |> List.map neighbors
+        |> List.foldl Set.union Set.empty
+        |> Set.filter (isDestination board selectedPlatform)
+
+
 type alias Model =
     { currentPlayer : Player
-    , board : Set Platform
+    , board : Board
     , phase : TurnPhase
     , selectedPlatform : Maybe Platform
     }
@@ -67,23 +99,38 @@ update msg model =
             model
 
 
-platformCircleView : Platform -> G.Shape Msg
-platformCircleView ( x, y ) =
-    G.circle 50 |> G.filled G.yellow |> G.move ( 100 * (toFloat x + cos (pi / 3) * toFloat y), 100 * sin (pi / 3) * toFloat y )
+platformCircleView : Maybe Platform -> Platform -> G.Shape Msg
+platformCircleView selectedPlatform ( x, y ) =
+    (case selectedPlatform of
+        Nothing ->
+            G.circle 50
+                |> G.filled G.yellow
+
+        Just ( selectedX, selectedY ) ->
+            if selectedX == x && selectedY == y then
+                G.circle 50 |> G.filled G.orange
+
+            else
+                G.circle 50
+                    |> G.filled G.yellow
+    )
+        |> G.move ( 100 * (toFloat x + cos (pi / 3) * toFloat y), 100 * sin (pi / 3) * toFloat y )
 
 
-platformView : TurnPhase -> Platform -> G.Shape Msg
-platformView turnPhase ( x, y ) =
+platformView : TurnPhase -> Maybe Platform -> Platform -> G.Shape Msg
+platformView turnPhase selectedPlatform platform =
     if turnPhase == SelectPlatformPhase then
-        platformCircleView ( x, y ) |> G.notifyTap (SelectPlatform ( x, y ))
+        platformCircleView selectedPlatform platform |> G.notifyTap (SelectPlatform platform)
 
     else
-        platformCircleView ( x, y )
+        platformCircleView selectedPlatform platform
 
 
 view : Model -> G.Collage Msg
 view model =
-    G.collage 1000 1000 (Set.toList model.board |> List.map (platformView model.phase))
+    Set.toList model.board
+        |> List.map (platformView model.phase model.selectedPlatform)
+        |> G.collage 1000 1000
 
 
 main : NotificationsApp Model Msg
