@@ -21,40 +21,65 @@ nextPlayer player =
             Red
 
 
-type Platform
-    = Platform
+type TurnPhase
+    = SelectPlatformPhase
+    | ChoosePlatformDestinationPhase
 
 
 type alias Model =
     { currentPlayer : Player
     , board : Set ( Int, Int )
+    , phase : TurnPhase
+    , selectedPlatform : Maybe ( Int, Int )
     }
 
 
 initialModel : Model
 initialModel =
     { currentPlayer = Red
-    , board = Set.fromList [ ( 0, 0 ), ( 1, 0 ), ( 0, 1 ) ]
+    , board = Set.fromList [ ( 0, 0 ), ( 1, 0 ), ( 0, 1 ), ( 1, 1 ), ( -1, 0 ), ( 0, -1 ), ( -1, -1 ), ( 1, -1 ), ( -1, 1 ) ]
+    , phase = SelectPlatformPhase
+    , selectedPlatform = Nothing
     }
 
 
 type Msg
-    = SomeMsg
+    = SelectPlatform ( Int, Int )
+    | ChoosePlatformDestination
 
 
 update : Msg -> Model -> Model
 update msg model =
-    model
+    case model.phase of
+        SelectPlatformPhase ->
+            case msg of
+                SelectPlatform platform ->
+                    { model | selectedPlatform = Just platform }
+
+                ChoosePlatformDestination ->
+                    model
+
+        ChoosePlatformDestinationPhase ->
+            model
 
 
-platformView : ( Int, Int ) -> G.Shape Msg
-platformView ( x, y ) =
+platformCircleView : ( Int, Int ) -> G.Shape Msg
+platformCircleView ( x, y ) =
     G.circle 50 |> G.filled G.yellow |> G.move ( 100 * (toFloat x + cos (pi / 3) * toFloat y), 100 * sin (pi / 3) * toFloat y )
+
+
+platformView : TurnPhase -> ( Int, Int ) -> G.Shape Msg
+platformView turnPhase ( x, y ) =
+    if turnPhase == SelectPlatformPhase then
+        platformCircleView ( x, y ) |> G.notifyTap (SelectPlatform ( x, y ))
+
+    else
+        platformCircleView ( x, y )
 
 
 view : Model -> G.Collage Msg
 view model =
-    G.collage 1000 1000 (Set.toList model.board |> List.map platformView)
+    G.collage 1000 1000 (Set.toList model.board |> List.map (platformView model.phase))
 
 
 main : NotificationsApp Model Msg
