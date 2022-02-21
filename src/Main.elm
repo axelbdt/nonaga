@@ -48,6 +48,11 @@ countNeighboringPlatforms board platform =
         |> Set.size
 
 
+isSelectable : Board -> Platform -> Bool
+isSelectable board platform =
+    countNeighboringPlatforms board platform < 5
+
+
 isDestination : Board -> Platform -> Platform -> Bool
 isDestination board selected platform =
     let
@@ -95,55 +100,65 @@ update msg model =
             model
 
 
-platformCircleView : Bool -> Platform -> G.Shape Msg
-platformCircleView selected ( x, y ) =
-    (if selected then
-        G.circle 50 |> G.filled G.orange
-
-     else
-        G.circle 50
-            |> G.filled G.yellow
-    )
+placeShape : ( Int, Int ) -> G.Shape Msg -> G.Shape Msg
+placeShape ( x, y ) shape =
+    shape
         |> G.move ( 100 * (toFloat x + cos (pi / 3) * toFloat y), 100 * sin (pi / 3) * toFloat y )
 
 
-platformView : Maybe Platform -> Platform -> G.Shape Msg
-platformView selectedPlatform platform =
+selectedPlatformShape =
+    G.circle 50 |> G.filled G.orange
+
+
+platformShape =
+    G.circle 50
+        |> G.filled G.yellow
+
+
+platformCircleView : Maybe Platform -> Platform -> G.Shape Msg
+platformCircleView selectedPlatform platform =
     (case selectedPlatform of
         Nothing ->
-            platformCircleView False platform
+            platformShape
 
         Just selected ->
             if selected == platform then
-                platformCircleView True platform
+                selectedPlatformShape
 
             else
-                platformCircleView False platform
+                platformShape
     )
-        |> G.notifyTap (SelectPlatform platform)
+        |> placeShape platform
+
+
+platformView : Board -> Maybe Platform -> Platform -> G.Shape Msg
+platformView board selectedPlatform platform =
+    if isSelectable board platform then
+        platformCircleView selectedPlatform platform
+            |> G.notifyTap (SelectPlatform platform)
+
+    else
+        platformCircleView selectedPlatform platform
 
 
 destinationView : Platform -> G.Shape Msg
 destinationView destination =
-    platformCircleView False destination |> G.makeTransparent 0.6
-
-
-destinationsView : Set Platform -> List (G.Shape Msg)
-destinationsView destinations =
-    List.map destinationView (Set.toList destinations)
+    platformCircleView Nothing destination |> G.makeTransparent 0.6
 
 
 boardView : Board -> Maybe Platform -> List (G.Shape Msg)
 boardView board selectedPlatform =
     Set.toList board
-        |> List.map (platformView selectedPlatform)
+        |> List.map (platformView board selectedPlatform)
         |> List.append
             (case selectedPlatform of
                 Nothing ->
                     []
 
                 Just selected ->
-                    destinationsView (findDestinations board selected)
+                    findDestinations board selected
+                        |> Set.toList
+                        |> List.map destinationView
             )
 
 
