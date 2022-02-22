@@ -55,7 +55,7 @@ directions =
         [ ( -1, 0 )
         , ( -1, 1 )
         , ( 0, 1 )
-        , ( 0, 1 )
+        , ( 0, -1 )
         , ( 1, -1 )
         , ( 1, 0 )
         ]
@@ -119,9 +119,14 @@ findPawnDestinations board pawns selectedPawn =
     Set.map (checkDirection board pawns selectedPawn) directions
 
 
-platformIsSelectable : Board -> Pawns -> Platform -> Bool
-platformIsSelectable board pawns platform =
-    countNeighboringPlatforms board platform < 5 && not (Dict.member platform pawns)
+platformIsSelectable : TurnPhase -> Board -> Pawns -> Platform -> Bool
+platformIsSelectable turnPhase board pawns platform =
+    case turnPhase of
+        MovePlatform ->
+            countNeighboringPlatforms board platform < 5 && not (Dict.member platform pawns)
+
+        _ ->
+            False
 
 
 isPlatformDestination : Board -> Platform -> Platform -> Bool
@@ -229,7 +234,7 @@ placeShape ( x, y ) shape =
 
 selectedPlatformShape : G.Shape Msg
 selectedPlatformShape =
-    G.circle 50 |> G.filled G.orange
+    G.circle 50 |> G.filled G.lightYellow
 
 
 platformShape : G.Shape Msg
@@ -254,9 +259,9 @@ platformCircleView selectedPlatform platform =
         |> placeShape platform
 
 
-platformView : Board -> Pawns -> Maybe Platform -> Platform -> G.Shape Msg
-platformView board pawns selectedPlatform platform =
-    if platformIsSelectable board pawns platform then
+platformView : TurnPhase -> Board -> Pawns -> Maybe Platform -> Platform -> G.Shape Msg
+platformView turnPhase board pawns selectedPlatform platform =
+    if platformIsSelectable turnPhase board pawns platform then
         platformCircleView selectedPlatform platform
             |> G.notifyTap (SelectPlatform platform)
 
@@ -269,10 +274,10 @@ platformDestinationView selected destination =
     platformCircleView Nothing destination |> G.makeTransparent 0.6 |> G.notifyTap (ChoosePlatformDestination selected destination)
 
 
-boardView : Board -> Pawns -> Maybe Platform -> List (G.Shape Msg)
-boardView board pawns selectedPlatform =
+boardView : TurnPhase -> Board -> Pawns -> Maybe Platform -> List (G.Shape Msg)
+boardView turnPhase board pawns selectedPlatform =
     Set.toList board
-        |> List.map (platformView board pawns selectedPlatform)
+        |> List.map (platformView turnPhase board pawns selectedPlatform)
         |> List.append
             (case selectedPlatform of
                 Nothing ->
@@ -352,7 +357,7 @@ view model =
                         |> Set.toList
                         |> List.map (pawnDestinationView selected model.currentPlayer)
             )
-        |> List.append (boardView model.board model.pawns model.selectedPlatform)
+        |> List.append (boardView model.turnPhase model.board model.pawns model.selectedPlatform)
         |> G.collage 1000 1000
 
 
