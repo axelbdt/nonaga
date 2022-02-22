@@ -260,40 +260,57 @@ boardView board pawns selectedPlatform =
             )
 
 
-color : Player -> G.Color
-color player =
+color : Player -> Bool -> G.Color
+color player selected =
     case player of
         Red ->
-            G.red
+            if selected then
+                G.pink
+
+            else
+                G.red
 
         Black ->
-            G.black
+            if selected then
+                G.grey
+
+            else
+                G.black
 
 
-pawnShape : Platform -> Player -> G.Shape Msg
-pawnShape platform player =
-    G.circle 40 |> G.filled (color player) |> placeShape platform
+pawnShape : Platform -> Player -> Bool -> G.Shape Msg
+pawnShape platform player selected =
+    G.circle 40 |> G.filled (color player selected) |> placeShape platform
 
 
-pawnView : Player -> TurnPhase -> Platform -> Player -> G.Shape Msg
-pawnView currentPlayer turnPhase platform player =
+pawnCircleView selectedPawn platform player =
+    case selectedPawn of
+        Nothing ->
+            pawnShape platform player False
+
+        Just selected ->
+            pawnShape platform player (selected == platform)
+
+
+pawnView : Player -> TurnPhase -> Maybe Platform -> Platform -> Player -> G.Shape Msg
+pawnView currentPlayer turnPhase selectedPawn platform player =
     if pawnIsSelectable currentPlayer turnPhase player then
-        pawnShape platform player
+        pawnCircleView selectedPawn platform player
             |> G.notifyTap (SelectPawn platform)
 
     else
-        pawnShape platform player
+        pawnCircleView selectedPawn platform player
 
 
-pawnsView : Player -> TurnPhase -> Dict Platform Player -> List (G.Shape Msg)
-pawnsView currentPlayer turnPhase pawns =
-    Dict.map (pawnView currentPlayer turnPhase) pawns
+pawnsView : Player -> TurnPhase -> Maybe Platform -> Dict Platform Player -> List (G.Shape Msg)
+pawnsView currentPlayer turnPhase selectedPawn pawns =
+    Dict.map (pawnView currentPlayer turnPhase selectedPawn) pawns
         |> Dict.values
 
 
 view : Model -> G.Collage Msg
 view model =
-    pawnsView model.currentPlayer model.turnPhase model.pawns
+    pawnsView model.currentPlayer model.turnPhase model.selectedPawn model.pawns
         |> List.append (boardView model.board model.pawns model.selectedPlatform)
         |> G.collage 1000 1000
 
