@@ -50,16 +50,21 @@ nextPlayer player =
             Red
 
 
+directions : Set ( Int, Int )
+directions =
+    Set.fromList
+        [ ( -1, 0 )
+        , ( -1, 1 )
+        , ( 0, 1 )
+        , ( 0, 1 )
+        , ( 1, -1 )
+        , ( 1, 0 )
+        ]
+
+
 neighbors : Platform -> Set Platform
 neighbors ( x, y ) =
-    Set.fromList
-        [ ( x - 1, y )
-        , ( x - 1, y + 1 )
-        , ( x, y - 1 )
-        , ( x, y + 1 )
-        , ( x + 1, y - 1 )
-        , ( x + 1, y )
-        ]
+    Set.map (\( dx, dy ) -> ( x + dx, y + dy )) directions
 
 
 countNeighboringPlatforms : Board -> Platform -> Int
@@ -94,13 +99,34 @@ pawnIsSelectable currentPlayer turnPhase player =
             False
 
 
+checkDirection : Board -> Pawns -> Platform -> ( Int, Int ) -> Platform
+checkDirection board pawns start direction =
+    let
+        ( x, y ) =
+            start
+
+        checkedPosition =
+            ( x + Tuple.first direction, y + Tuple.second direction )
+    in
+    if Set.member checkedPosition board && not (Dict.member checkedPosition pawns) then
+        checkDirection board pawns checkedPosition direction
+
+    else
+        start
+
+
+findPawnDestinations : Board -> Pawns -> Platform -> Set Platform
+findPawnDestinations board pawns selectedPawn =
+    Set.map (checkDirection board pawns selectedPawn) directions
+
+
 platformIsSelectable : Board -> Pawns -> Platform -> Bool
 platformIsSelectable board pawns platform =
     countNeighboringPlatforms board platform < 5 && not (Dict.member platform pawns)
 
 
-isDestination : Board -> Platform -> Platform -> Bool
-isDestination board selected platform =
+isPlatformDestination : Board -> Platform -> Platform -> Bool
+isPlatformDestination board selected platform =
     let
         neighborCount =
             countNeighboringPlatforms (Set.remove selected board) platform
@@ -108,12 +134,12 @@ isDestination board selected platform =
     neighborCount >= 2 && neighborCount < 5
 
 
-findDestinations : Board -> Platform -> Set Platform
-findDestinations board selectedPlatform =
+findPlatformDestinations : Board -> Platform -> Set Platform
+findPlatformDestinations board selectedPlatform =
     Set.toList board
         |> List.map neighbors
         |> List.foldl Set.union Set.empty
-        |> Set.filter (isDestination board selectedPlatform)
+        |> Set.filter (isPlatformDestination board selectedPlatform)
 
 
 initialBoard : Board
@@ -183,7 +209,7 @@ update msg model =
                     Dict.remove platform model.pawns
                         |> Dict.insert destination player
             in
-            { model | pawns = newPawns }
+            { model | pawns = newPawns, selectedPawn = Nothing }
 
         SelectPlatform platform ->
             { model | selectedPlatform = Just platform }
@@ -239,8 +265,8 @@ platformView board pawns selectedPlatform platform =
         platformCircleView selectedPlatform platform
 
 
-destinationView : Platform -> Platform -> G.Shape Msg
-destinationView selected destination =
+platformDestinationView : Platform -> Platform -> G.Shape Msg
+platformDestinationView selected destination =
     platformCircleView Nothing destination |> G.makeTransparent 0.6 |> G.notifyTap (ChoosePlatformDestination selected destination)
 
 
@@ -254,9 +280,9 @@ boardView board pawns selectedPlatform =
                     []
 
                 Just selected ->
-                    findDestinations board selected
+                    findPlatformDestinations board selected
                         |> Set.toList
-                        |> List.map (destinationView selected)
+                        |> List.map (platformDestinationView selected)
             )
 
 
@@ -265,17 +291,17 @@ color player selected =
     case player of
         Red ->
             if selected then
-                G.pink
+                G.lightRed
 
             else
                 G.red
 
         Black ->
             if selected then
-                G.grey
+                G.charcoal
 
             else
-                G.black
+                G.darkCharcoal
 
 
 pawnShape : Platform -> Player -> Bool -> G.Shape Msg
@@ -283,6 +309,7 @@ pawnShape platform player selected =
     G.circle 40 |> G.filled (color player selected) |> placeShape platform
 
 
+pawnCircleView : Maybe Platform -> Platform -> Player -> G.Shape Msg
 pawnCircleView selectedPawn platform player =
     case selectedPawn of
         Nothing ->
@@ -308,9 +335,24 @@ pawnsView currentPlayer turnPhase selectedPawn pawns =
         |> Dict.values
 
 
+pawnDestinationView : Platform -> Player -> Platform -> G.Shape Msg
+pawnDestinationView selected player destination =
+    pawnCircleView Nothing destination player |> G.makeTransparent 0.6 |> G.notifyTap (ChoosePawnDestination selected player destination)
+
+
 view : Model -> G.Collage Msg
 view model =
     pawnsView model.currentPlayer model.turnPhase model.selectedPawn model.pawns
+        |> List.append
+            (case model.selectedPawn of
+                Nothing ->
+                    []
+
+                Just selected ->
+                    findPawnDestinations model.board model.pawns selected
+                        |> Set.toList
+                        |> List.map (pawnDestinationView selected model.currentPlayer)
+            )
         |> List.append (boardView model.board model.pawns model.selectedPlatform)
         |> G.collage 1000 1000
 
