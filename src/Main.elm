@@ -225,7 +225,13 @@ update msg model =
                 newBoard =
                     model.board |> Set.remove selected |> Set.insert destination
             in
-            { model | currentPlayer = nextPlayer model.currentPlayer, turnPhase = MovePawn, selectedPlatform = Nothing, board = newBoard }
+            { model
+                | currentPlayer = nextPlayer model.currentPlayer
+                , turnPhase = MovePawn
+                , lastMovedPlatform = destination
+                , selectedPlatform = Nothing
+                , board = newBoard
+            }
 
 
 placeShape : ( Int, Int ) -> G.Shape Msg -> G.Shape Msg
