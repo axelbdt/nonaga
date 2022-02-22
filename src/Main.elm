@@ -240,29 +240,29 @@ placeShape ( x, y ) shape =
         |> G.move ( 100 * (toFloat x + cos (pi / 3) * toFloat y), 100 * sin (pi / 3) * toFloat y )
 
 
-selectedPlatformShape : G.Shape Msg
-selectedPlatformShape =
-    G.circle 50 |> G.filled G.lightYellow
+platformColor : Bool -> G.Color
+platformColor selected =
+    if selected then
+        G.lightYellow
+
+    else
+        G.yellow
 
 
-platformShape : G.Shape Msg
-platformShape =
+platformShape : Bool -> G.Shape Msg
+platformShape selected =
     G.circle 50
-        |> G.filled G.yellow
+        |> G.filled (platformColor selected)
 
 
 platformCircleView : Maybe Platform -> Platform -> G.Shape Msg
 platformCircleView selectedPlatform platform =
     (case selectedPlatform of
         Nothing ->
-            platformShape
+            platformShape False
 
         Just selected ->
-            if selected == platform then
-                selectedPlatformShape
-
-            else
-                platformShape
+            platformShape (selected == platform)
     )
         |> placeShape platform
 
@@ -300,19 +300,21 @@ color player selected =
                 G.darkCharcoal
 
 
-pawnShape : Platform -> Player -> Bool -> G.Shape Msg
-pawnShape platform player selected =
-    G.circle 40 |> G.filled (color player selected) |> placeShape platform
+pawnShape : Player -> Bool -> G.Shape Msg
+pawnShape player selected =
+    G.circle 40 |> G.filled (color player selected)
 
 
 pawnCircleView : Maybe Platform -> Platform -> Player -> G.Shape Msg
 pawnCircleView selectedPawn platform player =
-    case selectedPawn of
+    (case selectedPawn of
         Nothing ->
-            pawnShape platform player False
+            pawnShape player False
 
         Just selected ->
-            pawnShape platform player (selected == platform)
+            pawnShape player (selected == platform)
+    )
+        |> placeShape platform
 
 
 pawnView : Player -> TurnPhase -> Maybe Platform -> Platform -> Player -> G.Shape Msg
