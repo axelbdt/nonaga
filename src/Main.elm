@@ -34,6 +34,7 @@ type alias Model =
     , turnPhase : TurnPhase
     , board : Board
     , pawns : Dict Platform Player
+    , lastMovedPlatform : Platform
     , selectedPawn : Maybe Platform
     , selectedPlatform : Maybe Platform
     }
@@ -94,7 +95,7 @@ pawnIsSelectable currentPlayer turnPhase player =
                         Black ->
                             True
 
-        MovePlatform ->
+        _ ->
             False
 
 
@@ -119,11 +120,11 @@ findPawnDestinations board pawns selectedPawn =
     Set.map (checkDirection board pawns selectedPawn) directions
 
 
-platformIsSelectable : TurnPhase -> Board -> Pawns -> Platform -> Bool
-platformIsSelectable turnPhase board pawns platform =
+platformIsSelectable : TurnPhase -> Board -> Pawns -> Platform -> Platform -> Bool
+platformIsSelectable turnPhase board pawns lastMovedPlatform platform =
     case turnPhase of
         MovePlatform ->
-            countNeighboringPlatforms board platform < 5 && not (Dict.member platform pawns)
+            countNeighboringPlatforms board platform < 5 && not (Dict.member platform pawns) && platform /= lastMovedPlatform
 
         _ ->
             False
@@ -189,6 +190,7 @@ initialModel =
     , turnPhase = MovePawn
     , board = initialBoard
     , pawns = initialPawns
+    , lastMovedPlatform = ( 0, 0 )
     , selectedPawn = Nothing
     , selectedPlatform = Nothing
     }
@@ -259,9 +261,9 @@ platformCircleView selectedPlatform platform =
         |> placeShape platform
 
 
-platformView : TurnPhase -> Board -> Pawns -> Maybe Platform -> Platform -> G.Shape Msg
-platformView turnPhase board pawns selectedPlatform platform =
-    if platformIsSelectable turnPhase board pawns platform then
+platformView : TurnPhase -> Board -> Pawns -> Platform -> Maybe Platform -> Platform -> G.Shape Msg
+platformView turnPhase board pawns lastMovedPlatform selectedPlatform platform =
+    if platformIsSelectable turnPhase board pawns lastMovedPlatform platform then
         platformCircleView selectedPlatform platform
             |> G.notifyTap (SelectPlatform platform)
 
@@ -272,22 +274,6 @@ platformView turnPhase board pawns selectedPlatform platform =
 platformDestinationView : Platform -> Platform -> G.Shape Msg
 platformDestinationView selected destination =
     platformCircleView Nothing destination |> G.makeTransparent 0.6 |> G.notifyTap (ChoosePlatformDestination selected destination)
-
-
-boardView : TurnPhase -> Board -> Pawns -> Maybe Platform -> List (G.Shape Msg)
-boardView turnPhase board pawns selectedPlatform =
-    Set.toList board
-        |> List.map (platformView turnPhase board pawns selectedPlatform)
-        |> List.append
-            (case selectedPlatform of
-                Nothing ->
-                    []
-
-                Just selected ->
-                    findPlatformDestinations board selected
-                        |> Set.toList
-                        |> List.map (platformDestinationView selected)
-            )
 
 
 color : Player -> Bool -> G.Color
@@ -357,7 +343,20 @@ view model =
                         |> Set.toList
                         |> List.map (pawnDestinationView selected model.currentPlayer)
             )
-        |> List.append (boardView model.turnPhase model.board model.pawns model.selectedPlatform)
+        |> List.append
+            (Set.toList model.board
+                |> List.map (platformView model.turnPhase model.board model.pawns model.lastMovedPlatform model.selectedPlatform)
+                |> List.append
+                    (case model.selectedPlatform of
+                        Nothing ->
+                            []
+
+                        Just selected ->
+                            findPlatformDestinations model.board selected
+                                |> Set.toList
+                                |> List.map (platformDestinationView selected)
+                    )
+            )
         |> G.collage 1000 1000
 
 
