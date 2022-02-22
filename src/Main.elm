@@ -1,6 +1,5 @@
 module Main exposing (main)
 
-import Array
 import Basics exposing (cos, sin)
 import Dict exposing (Dict)
 import GraphicSVG as G
@@ -90,10 +89,10 @@ pawnIsSelectable currentPlayer turnPhase player =
                 Black ->
                     case player of
                         Red ->
-                            True
+                            False
 
                         Black ->
-                            False
+                            True
 
         MovePlatform ->
             False
@@ -209,7 +208,7 @@ update msg model =
                     Dict.remove platform model.pawns
                         |> Dict.insert destination player
             in
-            { model | pawns = newPawns, selectedPawn = Nothing }
+            { model | turnPhase = MovePlatform, pawns = newPawns, selectedPawn = Nothing }
 
         SelectPlatform platform ->
             { model | selectedPlatform = Just platform }
@@ -219,7 +218,7 @@ update msg model =
                 newBoard =
                     model.board |> Set.remove selected |> Set.insert destination
             in
-            { model | selectedPlatform = Nothing, board = newBoard }
+            { model | currentPlayer = nextPlayer model.currentPlayer, turnPhase = MovePawn, selectedPlatform = Nothing, board = newBoard }
 
 
 placeShape : ( Int, Int ) -> G.Shape Msg -> G.Shape Msg
