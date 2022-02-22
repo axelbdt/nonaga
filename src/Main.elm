@@ -5,7 +5,7 @@ import Basics exposing (cos, sin)
 import Dict exposing (Dict)
 import GraphicSVG as G
 import GraphicSVG.App exposing (NotificationsApp, notificationsApp)
-import Set exposing (Set, intersect)
+import Set exposing (Set)
 
 
 type Player
@@ -13,14 +13,9 @@ type Player
     | Black
 
 
-nextPlayer : Player -> Player
-nextPlayer player =
-    case player of
-        Red ->
-            Black
-
-        Black ->
-            Red
+type TurnPhase
+    = MovePawn
+    | MovePlatform
 
 
 type alias Platform =
@@ -33,6 +28,26 @@ type alias Board =
 
 type alias Pawns =
     Dict Platform Player
+
+
+type alias Model =
+    { currentPlayer : Player
+    , turnPhase : TurnPhase
+    , board : Board
+    , pawns : Dict Platform Player
+    , selectedPawn : Maybe Platform
+    , selectedPlatform : Maybe Platform
+    }
+
+
+nextPlayer : Player -> Player
+nextPlayer player =
+    case player of
+        Red ->
+            Black
+
+        Black ->
+            Red
 
 
 neighbors : Platform -> Set Platform
@@ -54,8 +69,33 @@ countNeighboringPlatforms board platform =
         |> Set.size
 
 
-isSelectable : Board -> Pawns -> Platform -> Bool
-isSelectable board pawns platform =
+pawnIsSelectable : Player -> TurnPhase -> Player -> Bool
+pawnIsSelectable currentPlayer turnPhase player =
+    case turnPhase of
+        MovePawn ->
+            case currentPlayer of
+                Red ->
+                    case player of
+                        Red ->
+                            True
+
+                        Black ->
+                            False
+
+                Black ->
+                    case player of
+                        Red ->
+                            True
+
+                        Black ->
+                            False
+
+        MovePlatform ->
+            False
+
+
+platformIsSelectable : Board -> Pawns -> Platform -> Bool
+platformIsSelectable board pawns platform =
     countNeighboringPlatforms board platform < 5 && not (Dict.member platform pawns)
 
 
@@ -74,14 +114,6 @@ findDestinations board selectedPlatform =
         |> List.map neighbors
         |> List.foldl Set.union Set.empty
         |> Set.filter (isDestination board selectedPlatform)
-
-
-type alias Model =
-    { currentPlayer : Player
-    , board : Board
-    , selectedPlatform : Maybe Platform
-    , pawns : Dict Platform Player
-    }
 
 
 initialBoard : Board
@@ -124,20 +156,35 @@ initialPawns =
 initialModel : Model
 initialModel =
     { currentPlayer = Red
+    , turnPhase = MovePawn
     , board = initialBoard
-    , selectedPlatform = Nothing
     , pawns = initialPawns
+    , selectedPawn = Nothing
+    , selectedPlatform = Nothing
     }
 
 
 type Msg
-    = SelectPlatform Platform
+    = SelectPawn Platform
+    | ChoosePawnDestination Platform Player Platform
+    | SelectPlatform Platform
     | ChoosePlatformDestination Platform Platform
 
 
 update : Msg -> Model -> Model
 update msg model =
     case msg of
+        SelectPawn platform ->
+            { model | selectedPawn = Just platform }
+
+        ChoosePawnDestination platform player destination ->
+            let
+                newPawns =
+                    Dict.remove platform model.pawns
+                        |> Dict.insert destination player
+            in
+            { model | pawns = newPawns }
+
         SelectPlatform platform ->
             { model | selectedPlatform = Just platform }
 
@@ -184,7 +231,7 @@ platformCircleView selectedPlatform platform =
 
 platformView : Board -> Pawns -> Maybe Platform -> Platform -> G.Shape Msg
 platformView board pawns selectedPlatform platform =
-    if isSelectable board pawns platform then
+    if platformIsSelectable board pawns platform then
         platformCircleView selectedPlatform platform
             |> G.notifyTap (SelectPlatform platform)
 
@@ -223,20 +270,30 @@ color player =
             G.black
 
 
-pawnView : Platform -> Player -> G.Shape Msg
-pawnView platform player =
+pawnShape : Platform -> Player -> G.Shape Msg
+pawnShape platform player =
     G.circle 40 |> G.filled (color player) |> placeShape platform
 
 
-pawnsView : Dict Platform Player -> List (G.Shape Msg)
-pawnsView pawns =
-    Dict.map pawnView pawns
+pawnView : Player -> TurnPhase -> Platform -> Player -> G.Shape Msg
+pawnView currentPlayer turnPhase platform player =
+    if pawnIsSelectable currentPlayer turnPhase player then
+        pawnShape platform player
+            |> G.notifyTap (SelectPawn platform)
+
+    else
+        pawnShape platform player
+
+
+pawnsView : Player -> TurnPhase -> Dict Platform Player -> List (G.Shape Msg)
+pawnsView currentPlayer turnPhase pawns =
+    Dict.map (pawnView currentPlayer turnPhase) pawns
         |> Dict.values
 
 
 view : Model -> G.Collage Msg
 view model =
-    pawnsView model.pawns
+    pawnsView model.currentPlayer model.turnPhase model.pawns
         |> List.append (boardView model.board model.pawns model.selectedPlatform)
         |> G.collage 1000 1000
 
