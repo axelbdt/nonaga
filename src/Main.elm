@@ -136,24 +136,32 @@ findTokenDestinations board tokens selectedToken =
 
 checkWinner : Tokens -> Maybe Player
 checkWinner tokens =
-    Nothing
+    let
+        checkTokens tokenList =
+            case tokenList of
+                [] ->
+                    Nothing
+
+                ( platform, player ) :: rest ->
+                    if tokenIsWinner tokens ( platform, player ) then
+                        Just player
+
+                    else
+                        checkTokens rest
+    in
+    Dict.toList tokens
+        |> checkTokens
 
 
-tokenIsWinner : Tokens -> Token -> Maybe Player
+tokenIsWinner : Tokens -> Token -> Bool
 tokenIsWinner tokens ( platform, player ) =
-    if
-        tokens
-            |> Dict.filter (\_ p -> p == player)
-            |> Dict.keys
-            |> Set.fromList
-            |> Set.intersect (neighbors platform)
-            |> Set.size
-            |> (==) 2
-    then
-        Just player
-
-    else
-        Nothing
+    tokens
+        |> Dict.filter (\_ p -> p == player)
+        |> Dict.keys
+        |> Set.fromList
+        |> Set.intersect (neighbors platform)
+        |> Set.size
+        |> (==) 2
 
 
 platformIsSelectable : TurnPhase -> Board -> Tokens -> Platform -> Platform -> Bool
