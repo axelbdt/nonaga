@@ -13,7 +13,7 @@ type Player
 
 
 type TurnPhase
-    = MovePawn
+    = MoveToken
     | MovePlatform
 
 
@@ -88,10 +88,10 @@ countNeighboringPlatforms board platform =
         |> Set.size
 
 
-pawnIsSelectable : Player -> TurnPhase -> Player -> Bool
-pawnIsSelectable currentPlayer turnPhase player =
+tokenIsSelectable : Player -> TurnPhase -> Player -> Bool
+tokenIsSelectable currentPlayer turnPhase player =
     case turnPhase of
-        MovePawn ->
+        MoveToken ->
             case currentPlayer of
                 Red ->
                     case player of
@@ -129,8 +129,8 @@ checkDirection board tokens start direction =
         start
 
 
-findPawnDestinations : Board -> Tokens -> Platform -> Set Platform
-findPawnDestinations board tokens selectedToken =
+findTokenDestinations : Board -> Tokens -> Platform -> Set Platform
+findTokenDestinations board tokens selectedToken =
     Set.map (checkDirection board tokens selectedToken) directions
 
 
@@ -139,14 +139,14 @@ checkWinner tokens =
     Nothing
 
 
-pawnIsWinner : Tokens -> Player -> Platform -> Maybe Player
-pawnIsWinner tokens player pawn =
+tokenIsWinner : Tokens -> Player -> Platform -> Maybe Player
+tokenIsWinner tokens player token =
     if
         tokens
             |> Dict.filter (\_ p -> p == player)
             |> Dict.keys
             |> Set.fromList
-            |> Set.intersect (neighbors pawn)
+            |> Set.intersect (neighbors token)
             |> Set.size
             |> (==) 2
     then
@@ -224,7 +224,7 @@ initialTokens =
 initialModel : Model
 initialModel =
     { currentPlayer = Red
-    , turnPhase = MovePawn
+    , turnPhase = MoveToken
     , board = initialBoard
     , tokens = initialTokens
     , lastMovedPlatform = ( 0, 0 )
@@ -234,8 +234,8 @@ initialModel =
 
 
 type Msg
-    = SelectPawn Platform
-    | ChoosePawnDestination Platform Player Platform
+    = SelectToken Platform
+    | ChooseTokenDestination Platform Player Platform
     | SelectPlatform Platform
     | ChoosePlatformDestination Platform Platform
 
@@ -243,10 +243,10 @@ type Msg
 update : Msg -> Model -> Model
 update msg model =
     case msg of
-        SelectPawn platform ->
+        SelectToken platform ->
             { model | selectedToken = Just platform }
 
-        ChoosePawnDestination platform player destination ->
+        ChooseTokenDestination platform player destination ->
             let
                 newTokens =
                     Dict.remove platform model.tokens
@@ -264,7 +264,7 @@ update msg model =
             in
             { model
                 | currentPlayer = nextPlayer model.currentPlayer
-                , turnPhase = MovePawn
+                , turnPhase = MoveToken
                 , lastMovedPlatform = destination
                 , selectedPlatform = Nothing
                 , board = newBoard
@@ -356,9 +356,9 @@ tokenCircleView selectedToken platform player =
 
 tokenView : Player -> TurnPhase -> Maybe Platform -> Platform -> Player -> G.Shape Msg
 tokenView currentPlayer turnPhase selectedToken platform player =
-    if pawnIsSelectable currentPlayer turnPhase player then
+    if tokenIsSelectable currentPlayer turnPhase player then
         tokenCircleView selectedToken platform player
-            |> G.notifyTap (SelectPawn platform)
+            |> G.notifyTap (SelectToken platform)
 
     else
         tokenCircleView selectedToken platform player
@@ -372,7 +372,7 @@ tokensView currentPlayer turnPhase selectedToken tokens =
 
 tokenDestinationView : Platform -> Player -> Platform -> G.Shape Msg
 tokenDestinationView selected player destination =
-    tokenCircleView Nothing destination player |> G.makeTransparent 0.6 |> G.notifyTap (ChoosePawnDestination selected player destination)
+    tokenCircleView Nothing destination player |> G.makeTransparent 0.6 |> G.notifyTap (ChooseTokenDestination selected player destination)
 
 
 winnerView : Player -> G.Shape Msg
@@ -417,7 +417,7 @@ view model =
                 []
 
             Just selected ->
-                findPawnDestinations model.board model.tokens selected
+                findTokenDestinations model.board model.tokens selected
                     |> Set.toList
                     |> List.map (tokenDestinationView selected model.currentPlayer)
         )
