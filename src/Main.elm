@@ -40,6 +40,16 @@ type alias Model =
     }
 
 
+playerText : Player -> String
+playerText player =
+    case player of
+        Red ->
+            "Red"
+
+        Black ->
+            "Black"
+
+
 nextPlayer : Player -> Player
 nextPlayer player =
     case player of
@@ -118,6 +128,11 @@ checkDirection board pawns start direction =
 findPawnDestinations : Board -> Pawns -> Platform -> Set Platform
 findPawnDestinations board pawns selectedPawn =
     Set.map (checkDirection board pawns selectedPawn) directions
+
+
+checkWinner : Pawns -> Maybe Player
+checkWinner pawns =
+    Nothing
 
 
 platformIsSelectable : TurnPhase -> Board -> Pawns -> Platform -> Platform -> Bool
@@ -338,33 +353,59 @@ pawnDestinationView selected player destination =
     pawnCircleView Nothing destination player |> G.makeTransparent 0.6 |> G.notifyTap (ChoosePawnDestination selected player destination)
 
 
+winnerView : Player -> G.Shape Msg
+winnerView player =
+    G.group
+        [ G.roundedRect 240 120 5 |> G.filled G.white
+        , G.text (playerText player ++ " wins!") |> G.centered |> G.size 32 |> G.filled (color player False) |> G.move ( 0, 16 )
+        , G.group
+            [ G.roundedRect 96 48 5 |> G.filled (color player False)
+            , G.text "Retry" |> G.centered |> G.size 24 |> G.filled G.white |> G.move ( 0, -8 )
+            ]
+            |> G.move ( 0, -24 )
+        ]
+
+
 view : Model -> G.Collage Msg
 view model =
-    pawnsView model.currentPlayer model.turnPhase model.selectedPawn model.pawns
-        |> List.append
-            (case model.selectedPawn of
-                Nothing ->
-                    []
+    [ G.group
+        (Set.toList model.board
+            |> List.map (platformView model.turnPhase model.board model.pawns model.lastMovedPlatform model.selectedPlatform)
+            |> List.append
+                (case model.selectedPlatform of
+                    Nothing ->
+                        []
 
-                Just selected ->
-                    findPawnDestinations model.board model.pawns selected
-                        |> Set.toList
-                        |> List.map (pawnDestinationView selected model.currentPlayer)
-            )
-        |> List.append
-            (Set.toList model.board
-                |> List.map (platformView model.turnPhase model.board model.pawns model.lastMovedPlatform model.selectedPlatform)
-                |> List.append
-                    (case model.selectedPlatform of
-                        Nothing ->
-                            []
+                    Just selected ->
+                        findPlatformDestinations model.board selected
+                            |> Set.toList
+                            |> List.map (platformDestinationView selected)
+                )
+        )
+    , G.group
+        (pawnsView
+            model.currentPlayer
+            model.turnPhase
+            model.selectedPawn
+            model.pawns
+        )
+    , G.group
+        (case model.selectedPawn of
+            Nothing ->
+                []
 
-                        Just selected ->
-                            findPlatformDestinations model.board selected
-                                |> Set.toList
-                                |> List.map (platformDestinationView selected)
-                    )
-            )
+            Just selected ->
+                findPawnDestinations model.board model.pawns selected
+                    |> Set.toList
+                    |> List.map (pawnDestinationView selected model.currentPlayer)
+        )
+    , case checkWinner model.pawns of
+        Nothing ->
+            G.group []
+
+        Just player ->
+            winnerView player
+    ]
         |> G.collage 1000 1000
 
 
