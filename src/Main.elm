@@ -132,7 +132,24 @@ findPawnDestinations board pawns selectedPawn =
 
 checkWinner : Pawns -> Maybe Player
 checkWinner pawns =
-    Nothing
+    pawnIsWinner pawns Red ( 1, 0 )
+
+
+pawnIsWinner : Pawns -> Player -> Platform -> Maybe Player
+pawnIsWinner pawns player pawn =
+    if
+        pawns
+            |> Dict.filter (\_ p -> p == player)
+            |> Dict.keys
+            |> Set.fromList
+            |> Set.intersect (neighbors pawn)
+            |> Set.size
+            |> (==) 2
+    then
+        Just player
+
+    else
+        Nothing
 
 
 platformIsSelectable : TurnPhase -> Board -> Pawns -> Platform -> Platform -> Bool
@@ -194,7 +211,8 @@ zipWithPlayer player l =
 
 initialPawns : Dict Platform Player
 initialPawns =
-    zipWithPlayer Red [ ( 0, -2 ), ( -2, 2 ), ( 2, 0 ) ]
+    zipWithPlayer Red [ ( 0, 0 ), ( 1, 0 ), ( 2, 0 ) ]
+        --[ ( 0, -2 ), ( -2, 2 ), ( 2, 0 ) ]
         |> List.append (zipWithPlayer Black [ ( -2, 0 ), ( 0, 2 ), ( 2, -2 ) ])
         |> Dict.fromList
 
