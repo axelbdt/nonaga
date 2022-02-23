@@ -300,35 +300,34 @@ platformShape selected =
         |> G.filled (platformColor selected)
 
 
-platformCircleView : Maybe Platform -> Platform -> G.Shape Msg
-platformCircleView selectedPlatform platform =
-    (case selectedPlatform of
-        Nothing ->
-            platformShape False
-
-        Just selected ->
-            platformShape (selected == platform)
-    )
-        |> placeShape platform
-
-
 platformView : TurnPhase -> Board -> Tokens -> Platform -> Maybe Platform -> Platform -> G.Shape Msg
 platformView turnPhase board tokens lastMovedPlatform selectedPlatform platform =
+    let
+        shape =
+            (case selectedPlatform of
+                Nothing ->
+                    platformShape False
+
+                Just selected ->
+                    platformShape (selected == platform)
+            )
+                |> placeShape platform
+    in
     if platformIsSelectable turnPhase board tokens lastMovedPlatform platform then
-        platformCircleView selectedPlatform platform
+        shape
             |> G.notifyTap (SelectPlatform platform)
 
     else
-        platformCircleView selectedPlatform platform
+        shape
 
 
 platformDestinationView : Platform -> Platform -> G.Shape Msg
 platformDestinationView selected destination =
-    platformCircleView Nothing destination |> G.makeTransparent 0.6 |> G.notifyTap (ChoosePlatformDestination selected destination)
+    platformShape False |> placeShape destination |> G.makeTransparent 0.6 |> G.notifyTap (ChoosePlatformDestination selected destination)
 
 
-color : Player -> Bool -> G.Color
-color player selected =
+tokenColor : Player -> Bool -> G.Color
+tokenColor player selected =
     case player of
         Red ->
             if selected then
@@ -347,29 +346,28 @@ color player selected =
 
 tokenShape : Player -> Bool -> G.Shape Msg
 tokenShape player selected =
-    G.circle 40 |> G.filled (color player selected)
-
-
-tokenCircleView : Maybe Platform -> Token -> G.Shape Msg
-tokenCircleView selectedToken ( platform, player ) =
-    (case selectedToken of
-        Nothing ->
-            tokenShape player False
-
-        Just selected ->
-            tokenShape player (selected == platform)
-    )
-        |> placeShape platform
+    G.circle 40 |> G.filled (tokenColor player selected)
 
 
 tokenView : Player -> TurnPhase -> Maybe Platform -> Token -> G.Shape Msg
 tokenView currentPlayer turnPhase selectedToken ( platform, player ) =
+    let
+        shape =
+            (case selectedToken of
+                Nothing ->
+                    tokenShape player False
+
+                Just selected ->
+                    tokenShape player (selected == platform)
+            )
+                |> placeShape platform
+    in
     if tokenIsSelectable currentPlayer turnPhase player then
-        tokenCircleView selectedToken ( platform, player )
+        shape
             |> G.notifyTap (SelectToken platform)
 
     else
-        tokenCircleView selectedToken ( platform, player )
+        shape
 
 
 tokensView : Player -> TurnPhase -> Maybe Platform -> Tokens -> List (G.Shape Msg)
@@ -380,16 +378,16 @@ tokensView currentPlayer turnPhase selectedToken tokens =
 
 tokenDestinationView : Token -> Platform -> G.Shape Msg
 tokenDestinationView ( start, player ) destination =
-    tokenCircleView Nothing ( destination, player ) |> G.makeTransparent 0.6 |> G.notifyTap (ChooseTokenDestination ( start, player ) destination)
+    tokenShape player False |> placeShape destination |> G.makeTransparent 0.6 |> G.notifyTap (ChooseTokenDestination ( start, player ) destination)
 
 
 winnerView : Player -> G.Shape Msg
 winnerView player =
     G.group
         [ G.roundedRect 240 120 5 |> G.filled G.white
-        , G.text (playerText player ++ " wins!") |> G.centered |> G.size 32 |> G.filled (color player False) |> G.move ( 0, 16 )
+        , G.text (playerText player ++ " wins!") |> G.centered |> G.size 32 |> G.filled (tokenColor player False) |> G.move ( 0, 16 )
         , G.group
-            [ G.roundedRect 96 48 5 |> G.filled (color player False)
+            [ G.roundedRect 96 48 5 |> G.filled (tokenColor player False)
             , G.text "Retry" |> G.centered |> G.size 24 |> G.filled G.white |> G.move ( 0, -8 )
             ]
             |> G.move ( 0, -24 )
@@ -401,16 +399,16 @@ view model =
     [ G.group
         (Set.toList model.board
             |> List.map (platformView model.turnPhase model.board model.tokens model.lastMovedPlatform model.selectedPlatform)
-            |> List.append
-                (case model.selectedPlatform of
-                    Nothing ->
-                        []
+        )
+    , G.group
+        (case model.selectedPlatform of
+            Nothing ->
+                []
 
-                    Just selected ->
-                        findPlatformDestinations model.board selected
-                            |> Set.toList
-                            |> List.map (platformDestinationView selected)
-                )
+            Just selected ->
+                findPlatformDestinations model.board selected
+                    |> Set.toList
+                    |> List.map (platformDestinationView selected)
         )
     , G.group
         (tokensView
