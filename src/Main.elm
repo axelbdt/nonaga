@@ -370,8 +370,8 @@ tokensView currentPlayer turnPhase selectedToken tokens =
         |> Dict.values
 
 
-pawnDestinationView : Platform -> Player -> Platform -> G.Shape Msg
-pawnDestinationView selected player destination =
+tokenDestinationView : Platform -> Player -> Platform -> G.Shape Msg
+tokenDestinationView selected player destination =
     tokenCircleView Nothing destination player |> G.makeTransparent 0.6 |> G.notifyTap (ChoosePawnDestination selected player destination)
 
 
@@ -419,7 +419,7 @@ view model =
             Just selected ->
                 findPawnDestinations model.board model.tokens selected
                     |> Set.toList
-                    |> List.map (pawnDestinationView selected model.currentPlayer)
+                    |> List.map (tokenDestinationView selected model.currentPlayer)
         )
     , case checkWinner model.tokens of
         Nothing ->
