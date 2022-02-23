@@ -243,7 +243,7 @@ initialModel =
 
 type Msg
     = SelectToken Platform
-    | ChooseTokenDestination Platform Player Platform
+    | ChooseTokenDestination Token Platform
     | SelectPlatform Platform
     | ChoosePlatformDestination Platform Platform
 
@@ -254,7 +254,7 @@ update msg model =
         SelectToken platform ->
             { model | selectedToken = Just platform }
 
-        ChooseTokenDestination platform player destination ->
+        ChooseTokenDestination ( platform, player ) destination ->
             let
                 newTokens =
                     Dict.remove platform model.tokens
@@ -378,9 +378,9 @@ tokensView currentPlayer turnPhase selectedToken tokens =
         |> List.map (tokenView currentPlayer turnPhase selectedToken)
 
 
-tokenDestinationView : Platform -> Player -> Platform -> G.Shape Msg
-tokenDestinationView selected player destination =
-    tokenCircleView Nothing ( destination, player ) |> G.makeTransparent 0.6 |> G.notifyTap (ChooseTokenDestination selected player destination)
+tokenDestinationView : Token -> Platform -> G.Shape Msg
+tokenDestinationView ( start, player ) destination =
+    tokenCircleView Nothing ( destination, player ) |> G.makeTransparent 0.6 |> G.notifyTap (ChooseTokenDestination ( start, player ) destination)
 
 
 winnerView : Player -> G.Shape Msg
@@ -427,7 +427,7 @@ view model =
             Just selected ->
                 findTokenDestinations model.board model.tokens selected
                     |> Set.toList
-                    |> List.map (tokenDestinationView selected model.currentPlayer)
+                    |> List.map (tokenDestinationView ( selected, model.currentPlayer ))
         )
     , case checkWinner model.tokens of
         Nothing ->
