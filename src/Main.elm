@@ -139,14 +139,14 @@ checkWinner tokens =
     Nothing
 
 
-tokenIsWinner : Tokens -> Player -> Platform -> Maybe Player
-tokenIsWinner tokens player token =
+tokenIsWinner : Tokens -> Token -> Maybe Player
+tokenIsWinner tokens ( platform, player ) =
     if
         tokens
             |> Dict.filter (\_ p -> p == player)
             |> Dict.keys
             |> Set.fromList
-            |> Set.intersect (neighbors token)
+            |> Set.intersect (neighbors platform)
             |> Set.size
             |> (==) 2
     then
@@ -208,16 +208,16 @@ initialBoard =
         ]
 
 
-zipWithPlayer : Player -> List a -> List ( a, Player )
-zipWithPlayer player l =
-    List.map (\x -> ( x, player )) l
+createToken : Player -> Platform -> Token
+createToken player platform =
+    ( platform, player )
 
 
 initialTokens : Dict Platform Player
 initialTokens =
-    zipWithPlayer Red [ ( 0, 0 ), ( 1, 0 ), ( 2, 0 ) ]
+    List.map (createToken Red) [ ( 0, 0 ), ( 1, 0 ), ( 2, 0 ) ]
         --[ ( 0, -2 ), ( -2, 2 ), ( 2, 0 ) ]
-        |> List.append (zipWithPlayer Black [ ( -2, 0 ), ( 0, 2 ), ( 2, -2 ) ])
+        |> List.append (List.map (createToken Black) [ ( -2, 0 ), ( 0, 2 ), ( 2, -2 ) ])
         |> Dict.fromList
 
 
@@ -342,8 +342,8 @@ tokenShape player selected =
     G.circle 40 |> G.filled (color player selected)
 
 
-tokenCircleView : Maybe Platform -> Platform -> Player -> G.Shape Msg
-tokenCircleView selectedToken platform player =
+tokenCircleView : Maybe Platform -> Token -> G.Shape Msg
+tokenCircleView selectedToken ( platform, player ) =
     (case selectedToken of
         Nothing ->
             tokenShape player False
@@ -354,25 +354,25 @@ tokenCircleView selectedToken platform player =
         |> placeShape platform
 
 
-tokenView : Player -> TurnPhase -> Maybe Platform -> Platform -> Player -> G.Shape Msg
-tokenView currentPlayer turnPhase selectedToken platform player =
+tokenView : Player -> TurnPhase -> Maybe Platform -> Token -> G.Shape Msg
+tokenView currentPlayer turnPhase selectedToken ( platform, player ) =
     if tokenIsSelectable currentPlayer turnPhase player then
-        tokenCircleView selectedToken platform player
+        tokenCircleView selectedToken ( platform, player )
             |> G.notifyTap (SelectToken platform)
 
     else
-        tokenCircleView selectedToken platform player
+        tokenCircleView selectedToken ( platform, player )
 
 
-tokensView : Player -> TurnPhase -> Maybe Platform -> Dict Platform Player -> List (G.Shape Msg)
+tokensView : Player -> TurnPhase -> Maybe Platform -> Tokens -> List (G.Shape Msg)
 tokensView currentPlayer turnPhase selectedToken tokens =
-    Dict.map (tokenView currentPlayer turnPhase selectedToken) tokens
-        |> Dict.values
+    Dict.toList tokens
+        |> List.map (tokenView currentPlayer turnPhase selectedToken)
 
 
 tokenDestinationView : Platform -> Player -> Platform -> G.Shape Msg
 tokenDestinationView selected player destination =
-    tokenCircleView Nothing destination player |> G.makeTransparent 0.6 |> G.notifyTap (ChooseTokenDestination selected player destination)
+    tokenCircleView Nothing ( destination, player ) |> G.makeTransparent 0.6 |> G.notifyTap (ChooseTokenDestination selected player destination)
 
 
 winnerView : Player -> G.Shape Msg
