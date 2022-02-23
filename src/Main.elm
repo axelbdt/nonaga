@@ -227,8 +227,7 @@ createToken player platform =
 
 initialTokens : Dict Platform Player
 initialTokens =
-    List.map (createToken Red) [ ( 0, 0 ), ( 1, 0 ), ( 2, 0 ) ]
-        --[ ( 0, -2 ), ( -2, 2 ), ( 2, 0 ) ]
+    List.map (createToken Red) [ ( 0, -2 ), ( -2, 2 ), ( 2, 0 ) ]
         |> List.append (List.map (createToken Black) [ ( -2, 0 ), ( 0, 2 ), ( 2, -2 ) ])
         |> Dict.fromList
 
@@ -250,6 +249,7 @@ type Msg
     | ChooseTokenDestination Token Platform
     | SelectPlatform Platform
     | ChoosePlatformDestination Platform Platform
+    | Reset
 
 
 
@@ -285,6 +285,9 @@ update msg model =
                 , selectedPlatform = Nothing
                 , board = newBoard
             }
+
+        Reset ->
+            initialModel
 
 
 
@@ -406,6 +409,7 @@ winnerView player =
             , G.text "Retry" |> G.centered |> G.size 24 |> G.filled G.white |> G.move ( 0, -8 )
             ]
             |> G.move ( 0, -24 )
+            |> G.notifyTap Reset
         ]
 
 
