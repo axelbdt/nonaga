@@ -25,7 +25,11 @@ type alias Board =
     Set Platform
 
 
-type alias Pawns =
+type alias Token =
+    ( Platform, Player )
+
+
+type alias Tokens =
     Dict Platform Player
 
 
@@ -33,9 +37,9 @@ type alias Model =
     { currentPlayer : Player
     , turnPhase : TurnPhase
     , board : Board
-    , pawns : Dict Platform Player
+    , tokens : Dict Platform Player
     , lastMovedPlatform : Platform
-    , selectedPawn : Maybe Platform
+    , selectedToken : Maybe Platform
     , selectedPlatform : Maybe Platform
     }
 
@@ -109,8 +113,8 @@ pawnIsSelectable currentPlayer turnPhase player =
             False
 
 
-checkDirection : Board -> Pawns -> Platform -> ( Int, Int ) -> Platform
-checkDirection board pawns start direction =
+checkDirection : Board -> Tokens -> Platform -> ( Int, Int ) -> Platform
+checkDirection board tokens start direction =
     let
         ( x, y ) =
             start
@@ -118,27 +122,27 @@ checkDirection board pawns start direction =
         checkedPosition =
             ( x + Tuple.first direction, y + Tuple.second direction )
     in
-    if Set.member checkedPosition board && not (Dict.member checkedPosition pawns) then
-        checkDirection board pawns checkedPosition direction
+    if Set.member checkedPosition board && not (Dict.member checkedPosition tokens) then
+        checkDirection board tokens checkedPosition direction
 
     else
         start
 
 
-findPawnDestinations : Board -> Pawns -> Platform -> Set Platform
-findPawnDestinations board pawns selectedPawn =
-    Set.map (checkDirection board pawns selectedPawn) directions
+findPawnDestinations : Board -> Tokens -> Platform -> Set Platform
+findPawnDestinations board tokens selectedToken =
+    Set.map (checkDirection board tokens selectedToken) directions
 
 
-checkWinner : Pawns -> Maybe Player
-checkWinner pawns =
-    pawnIsWinner pawns Red ( 1, 0 )
+checkWinner : Tokens -> Maybe Player
+checkWinner tokens =
+    Nothing
 
 
-pawnIsWinner : Pawns -> Player -> Platform -> Maybe Player
-pawnIsWinner pawns player pawn =
+pawnIsWinner : Tokens -> Player -> Platform -> Maybe Player
+pawnIsWinner tokens player pawn =
     if
-        pawns
+        tokens
             |> Dict.filter (\_ p -> p == player)
             |> Dict.keys
             |> Set.fromList
@@ -152,11 +156,11 @@ pawnIsWinner pawns player pawn =
         Nothing
 
 
-platformIsSelectable : TurnPhase -> Board -> Pawns -> Platform -> Platform -> Bool
-platformIsSelectable turnPhase board pawns lastMovedPlatform platform =
+platformIsSelectable : TurnPhase -> Board -> Tokens -> Platform -> Platform -> Bool
+platformIsSelectable turnPhase board tokens lastMovedPlatform platform =
     case turnPhase of
         MovePlatform ->
-            countNeighboringPlatforms board platform < 5 && not (Dict.member platform pawns) && platform /= lastMovedPlatform
+            countNeighboringPlatforms board platform < 5 && not (Dict.member platform tokens) && platform /= lastMovedPlatform
 
         _ ->
             False
@@ -209,8 +213,8 @@ zipWithPlayer player l =
     List.map (\x -> ( x, player )) l
 
 
-initialPawns : Dict Platform Player
-initialPawns =
+initialTokens : Dict Platform Player
+initialTokens =
     zipWithPlayer Red [ ( 0, 0 ), ( 1, 0 ), ( 2, 0 ) ]
         --[ ( 0, -2 ), ( -2, 2 ), ( 2, 0 ) ]
         |> List.append (zipWithPlayer Black [ ( -2, 0 ), ( 0, 2 ), ( 2, -2 ) ])
@@ -222,9 +226,9 @@ initialModel =
     { currentPlayer = Red
     , turnPhase = MovePawn
     , board = initialBoard
-    , pawns = initialPawns
+    , tokens = initialTokens
     , lastMovedPlatform = ( 0, 0 )
-    , selectedPawn = Nothing
+    , selectedToken = Nothing
     , selectedPlatform = Nothing
     }
 
@@ -240,15 +244,15 @@ update : Msg -> Model -> Model
 update msg model =
     case msg of
         SelectPawn platform ->
-            { model | selectedPawn = Just platform }
+            { model | selectedToken = Just platform }
 
         ChoosePawnDestination platform player destination ->
             let
-                newPawns =
-                    Dict.remove platform model.pawns
+                newTokens =
+                    Dict.remove platform model.tokens
                         |> Dict.insert destination player
             in
-            { model | turnPhase = MovePlatform, pawns = newPawns, selectedPawn = Nothing }
+            { model | turnPhase = MovePlatform, tokens = newTokens, selectedToken = Nothing }
 
         SelectPlatform platform ->
             { model | selectedPlatform = Just platform }
@@ -300,9 +304,9 @@ platformCircleView selectedPlatform platform =
         |> placeShape platform
 
 
-platformView : TurnPhase -> Board -> Pawns -> Platform -> Maybe Platform -> Platform -> G.Shape Msg
-platformView turnPhase board pawns lastMovedPlatform selectedPlatform platform =
-    if platformIsSelectable turnPhase board pawns lastMovedPlatform platform then
+platformView : TurnPhase -> Board -> Tokens -> Platform -> Maybe Platform -> Platform -> G.Shape Msg
+platformView turnPhase board tokens lastMovedPlatform selectedPlatform platform =
+    if platformIsSelectable turnPhase board tokens lastMovedPlatform platform then
         platformCircleView selectedPlatform platform
             |> G.notifyTap (SelectPlatform platform)
 
@@ -333,42 +337,42 @@ color player selected =
                 G.darkCharcoal
 
 
-pawnShape : Player -> Bool -> G.Shape Msg
-pawnShape player selected =
+tokenShape : Player -> Bool -> G.Shape Msg
+tokenShape player selected =
     G.circle 40 |> G.filled (color player selected)
 
 
-pawnCircleView : Maybe Platform -> Platform -> Player -> G.Shape Msg
-pawnCircleView selectedPawn platform player =
-    (case selectedPawn of
+tokenCircleView : Maybe Platform -> Platform -> Player -> G.Shape Msg
+tokenCircleView selectedToken platform player =
+    (case selectedToken of
         Nothing ->
-            pawnShape player False
+            tokenShape player False
 
         Just selected ->
-            pawnShape player (selected == platform)
+            tokenShape player (selected == platform)
     )
         |> placeShape platform
 
 
-pawnView : Player -> TurnPhase -> Maybe Platform -> Platform -> Player -> G.Shape Msg
-pawnView currentPlayer turnPhase selectedPawn platform player =
+tokenView : Player -> TurnPhase -> Maybe Platform -> Platform -> Player -> G.Shape Msg
+tokenView currentPlayer turnPhase selectedToken platform player =
     if pawnIsSelectable currentPlayer turnPhase player then
-        pawnCircleView selectedPawn platform player
+        tokenCircleView selectedToken platform player
             |> G.notifyTap (SelectPawn platform)
 
     else
-        pawnCircleView selectedPawn platform player
+        tokenCircleView selectedToken platform player
 
 
-pawnsView : Player -> TurnPhase -> Maybe Platform -> Dict Platform Player -> List (G.Shape Msg)
-pawnsView currentPlayer turnPhase selectedPawn pawns =
-    Dict.map (pawnView currentPlayer turnPhase selectedPawn) pawns
+tokensView : Player -> TurnPhase -> Maybe Platform -> Dict Platform Player -> List (G.Shape Msg)
+tokensView currentPlayer turnPhase selectedToken tokens =
+    Dict.map (tokenView currentPlayer turnPhase selectedToken) tokens
         |> Dict.values
 
 
 pawnDestinationView : Platform -> Player -> Platform -> G.Shape Msg
 pawnDestinationView selected player destination =
-    pawnCircleView Nothing destination player |> G.makeTransparent 0.6 |> G.notifyTap (ChoosePawnDestination selected player destination)
+    tokenCircleView Nothing destination player |> G.makeTransparent 0.6 |> G.notifyTap (ChoosePawnDestination selected player destination)
 
 
 winnerView : Player -> G.Shape Msg
@@ -388,7 +392,7 @@ view : Model -> G.Collage Msg
 view model =
     [ G.group
         (Set.toList model.board
-            |> List.map (platformView model.turnPhase model.board model.pawns model.lastMovedPlatform model.selectedPlatform)
+            |> List.map (platformView model.turnPhase model.board model.tokens model.lastMovedPlatform model.selectedPlatform)
             |> List.append
                 (case model.selectedPlatform of
                     Nothing ->
@@ -401,23 +405,23 @@ view model =
                 )
         )
     , G.group
-        (pawnsView
+        (tokensView
             model.currentPlayer
             model.turnPhase
-            model.selectedPawn
-            model.pawns
+            model.selectedToken
+            model.tokens
         )
     , G.group
-        (case model.selectedPawn of
+        (case model.selectedToken of
             Nothing ->
                 []
 
             Just selected ->
-                findPawnDestinations model.board model.pawns selected
+                findPawnDestinations model.board model.tokens selected
                     |> Set.toList
                     |> List.map (pawnDestinationView selected model.currentPlayer)
         )
-    , case checkWinner model.pawns of
+    , case checkWinner model.tokens of
         Nothing ->
             G.group []
 
