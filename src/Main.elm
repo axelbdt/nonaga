@@ -361,8 +361,8 @@ tokenShape player selected =
     G.circle 40 |> G.filled (tokenColor player selected)
 
 
-tokenView : Player -> TurnPhase -> Maybe Platform -> Token -> G.Shape Msg
-tokenView currentPlayer turnPhase selectedToken ( platform, player ) =
+tokenView : Bool -> Player -> TurnPhase -> Maybe Platform -> Token -> G.Shape Msg
+tokenView gameOver currentPlayer turnPhase selectedToken ( platform, player ) =
     let
         shape =
             (case selectedToken of
@@ -374,7 +374,10 @@ tokenView currentPlayer turnPhase selectedToken ( platform, player ) =
             )
                 |> placeShape platform
     in
-    if tokenIsSelectable currentPlayer turnPhase player then
+    if gameOver then
+        shape
+
+    else if tokenIsSelectable currentPlayer turnPhase player then
         shape
             |> G.notifyTap (SelectToken platform)
 
@@ -382,10 +385,10 @@ tokenView currentPlayer turnPhase selectedToken ( platform, player ) =
         shape
 
 
-tokensView : Player -> TurnPhase -> Maybe Platform -> Tokens -> List (G.Shape Msg)
-tokensView currentPlayer turnPhase selectedToken tokens =
+tokensView : Bool -> Player -> TurnPhase -> Maybe Platform -> Tokens -> List (G.Shape Msg)
+tokensView gameOver currentPlayer turnPhase selectedToken tokens =
     Dict.toList tokens
-        |> List.map (tokenView currentPlayer turnPhase selectedToken)
+        |> List.map (tokenView gameOver currentPlayer turnPhase selectedToken)
 
 
 tokenDestinationView : Token -> Platform -> G.Shape Msg
@@ -408,6 +411,18 @@ winnerView player =
 
 view : Model -> G.Collage Msg
 view model =
+    let
+        winner =
+            checkWinner model.tokens
+
+        gameOver =
+            case winner of
+                Nothing ->
+                    False
+
+                Just _ ->
+                    True
+    in
     [ G.group
         (Set.toList model.board
             |> List.map (platformView model.turnPhase model.board model.tokens model.lastMovedPlatform model.selectedPlatform)
@@ -424,6 +439,7 @@ view model =
         )
     , G.group
         (tokensView
+            gameOver
             model.currentPlayer
             model.turnPhase
             model.selectedToken
