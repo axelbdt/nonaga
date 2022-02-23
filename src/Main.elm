@@ -7,6 +7,10 @@ import GraphicSVG.App exposing (NotificationsApp, notificationsApp)
 import Set exposing (Set)
 
 
+
+-- MODEL
+
+
 type Player
     = Red
     | Black
@@ -248,6 +252,10 @@ type Msg
     | ChoosePlatformDestination Platform Platform
 
 
+
+-- UPDATE
+
+
 update : Msg -> Model -> Model
 update msg model =
     case msg of
@@ -277,6 +285,10 @@ update msg model =
                 , selectedPlatform = Nothing
                 , board = newBoard
             }
+
+
+
+-- VIEW
 
 
 placeShape : ( Int, Int ) -> G.Shape Msg -> G.Shape Msg
