@@ -261,10 +261,6 @@ type Msg
 
 update : Msg -> Model -> Model
 update msg model =
-    let
-        winner =
-            checkWinner model.tokens
-    in
     case msg of
         SelectToken ( platform, player ) ->
             case model.turnPhase of
@@ -293,7 +289,7 @@ update msg model =
         SelectPlatform platform ->
             case model.turnPhase of
                 MovePlatform ->
-                    case winner of
+                    case checkWinner model.tokens of
                         Nothing ->
                             if platformIsSelectable model.board model.tokens model.lastMovedPlatform platform then
                                 { model | selectedPlatform = Just platform }
