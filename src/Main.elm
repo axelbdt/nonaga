@@ -92,29 +92,24 @@ countNeighboringPlatforms board platform =
         |> Set.size
 
 
-tokenIsSelectable : Player -> TurnPhase -> Player -> Bool
-tokenIsSelectable currentPlayer turnPhase player =
-    case turnPhase of
-        MoveToken ->
-            case currentPlayer of
+playerEquals : Player -> Player -> Bool
+playerEquals p1 p2 =
+    case p1 of
+        Red ->
+            case p2 of
                 Red ->
-                    case player of
-                        Red ->
-                            True
-
-                        Black ->
-                            False
+                    True
 
                 Black ->
-                    case player of
-                        Red ->
-                            False
+                    False
 
-                        Black ->
-                            True
+        Black ->
+            case p2 of
+                Red ->
+                    False
 
-        _ ->
-            False
+                Black ->
+                    True
 
 
 checkDirection : Board -> Tokens -> Platform -> ( Int, Int ) -> Platform
@@ -168,14 +163,9 @@ tokenIsWinner tokens ( platform, player ) =
         |> (==) 2
 
 
-platformIsSelectable : TurnPhase -> Board -> Tokens -> Platform -> Platform -> Bool
-platformIsSelectable turnPhase board tokens lastMovedPlatform platform =
-    case turnPhase of
-        MovePlatform ->
-            countNeighboringPlatforms board platform < 5 && not (Dict.member platform tokens) && platform /= lastMovedPlatform
-
-        _ ->
-            False
+platformIsSelectable : Board -> Tokens -> Platform -> Platform -> Bool
+platformIsSelectable board tokens lastMovedPlatform platform =
+    countNeighboringPlatforms board platform < 5 && not (Dict.member platform tokens) && platform /= lastMovedPlatform
 
 
 isPlatformDestination : Board -> Platform -> Platform -> Bool
@@ -245,7 +235,7 @@ initialModel =
 
 
 type Msg
-    = SelectToken Platform
+    = SelectToken Token
     | ChooseTokenDestination Token Platform
     | SelectPlatform Platform
     | ChoosePlatformDestination Platform Platform
@@ -258,9 +248,22 @@ type Msg
 
 update : Msg -> Model -> Model
 update msg model =
+    let
+        winner =
+            checkWinner model.tokens
+    in
     case msg of
-        SelectToken platform ->
-            { model | selectedToken = Just platform }
+        SelectToken ( platform, player ) ->
+            case model.turnPhase of
+                MoveToken ->
+                    if playerEquals model.currentPlayer player then
+                        { model | selectedToken = Just platform }
+
+                    else
+                        model
+
+                MovePlatform ->
+                    model
 
         ChooseTokenDestination ( platform, player ) destination ->
             let
@@ -268,10 +271,28 @@ update msg model =
                     Dict.remove platform model.tokens
                         |> Dict.insert destination player
             in
-            { model | turnPhase = MovePlatform, tokens = newTokens, selectedToken = Nothing }
+            { model
+                | turnPhase = MovePlatform
+                , tokens = newTokens
+                , selectedToken = Nothing
+            }
 
         SelectPlatform platform ->
-            { model | selectedPlatform = Just platform }
+            case model.turnPhase of
+                MovePlatform ->
+                    case winner of
+                        Nothing ->
+                            if platformIsSelectable model.board model.tokens model.lastMovedPlatform platform then
+                                { model | selectedPlatform = Just platform }
+
+                            else
+                                model
+
+                        Just _ ->
+                            model
+
+                MoveToken ->
+                    model
 
         ChoosePlatformDestination selected destination ->
             let
@@ -315,25 +336,17 @@ platformShape selected =
         |> G.filled (platformColor selected)
 
 
-platformView : TurnPhase -> Board -> Tokens -> Platform -> Maybe Platform -> Platform -> G.Shape Msg
-platformView turnPhase board tokens lastMovedPlatform selectedPlatform platform =
-    let
-        shape =
-            (case selectedPlatform of
-                Nothing ->
-                    platformShape False
+platformView : Maybe Platform -> Platform -> G.Shape Msg
+platformView selectedPlatform platform =
+    (case selectedPlatform of
+        Nothing ->
+            platformShape False
 
-                Just selected ->
-                    platformShape (selected == platform)
-            )
-                |> placeShape platform
-    in
-    if platformIsSelectable turnPhase board tokens lastMovedPlatform platform then
-        shape
-            |> G.notifyTap (SelectPlatform platform)
-
-    else
-        shape
+        Just selected ->
+            platformShape (selected == platform)
+    )
+        |> placeShape platform
+        |> G.notifyTap (SelectPlatform platform)
 
 
 platformDestinationView : Platform -> Platform -> G.Shape Msg
@@ -364,34 +377,23 @@ tokenShape player selected =
     G.circle 40 |> G.filled (tokenColor player selected)
 
 
-tokenView : Bool -> Player -> TurnPhase -> Maybe Platform -> Token -> G.Shape Msg
-tokenView gameOver currentPlayer turnPhase selectedToken ( platform, player ) =
-    let
-        shape =
-            (case selectedToken of
-                Nothing ->
-                    tokenShape player False
+tokenView : Maybe Platform -> Token -> G.Shape Msg
+tokenView selectedToken ( platform, player ) =
+    (case selectedToken of
+        Nothing ->
+            tokenShape player False
 
-                Just selected ->
-                    tokenShape player (selected == platform)
-            )
-                |> placeShape platform
-    in
-    if gameOver then
-        shape
-
-    else if tokenIsSelectable currentPlayer turnPhase player then
-        shape
-            |> G.notifyTap (SelectToken platform)
-
-    else
-        shape
+        Just selected ->
+            tokenShape player (selected == platform)
+    )
+        |> placeShape platform
+        |> G.notifyTap (SelectToken ( platform, player ))
 
 
-tokensView : Bool -> Player -> TurnPhase -> Maybe Platform -> Tokens -> List (G.Shape Msg)
-tokensView gameOver currentPlayer turnPhase selectedToken tokens =
+tokensView : Maybe Platform -> Tokens -> List (G.Shape Msg)
+tokensView selectedToken tokens =
     Dict.toList tokens
-        |> List.map (tokenView gameOver currentPlayer turnPhase selectedToken)
+        |> List.map (tokenView selectedToken)
 
 
 tokenDestinationView : Token -> Platform -> G.Shape Msg
@@ -415,21 +417,9 @@ winnerView player =
 
 view : Model -> G.Collage Msg
 view model =
-    let
-        winner =
-            checkWinner model.tokens
-
-        gameOver =
-            case winner of
-                Nothing ->
-                    False
-
-                Just _ ->
-                    True
-    in
     [ G.group
         (Set.toList model.board
-            |> List.map (platformView model.turnPhase model.board model.tokens model.lastMovedPlatform model.selectedPlatform)
+            |> List.map (platformView model.selectedPlatform)
         )
     , G.group
         (case model.selectedPlatform of
@@ -443,9 +433,6 @@ view model =
         )
     , G.group
         (tokensView
-            gameOver
-            model.currentPlayer
-            model.turnPhase
             model.selectedToken
             model.tokens
         )
