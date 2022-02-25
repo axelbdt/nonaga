@@ -217,9 +217,22 @@ createToken player platform =
 
 initialTokens : Dict Platform Player
 initialTokens =
-    List.map (createToken Red) [ ( 0, -2 ), ( -2, 2 ), ( 2, 0 ) ]
-        |> List.append (List.map (createToken Black) [ ( -2, 0 ), ( 0, 2 ), ( 2, -2 ) ])
-        |> Dict.fromList
+    let
+        redTokens =
+            List.map (createToken Red)
+                [ ( 0, -2 )
+                , ( -2, 2 )
+                , ( 2, 0 )
+                ]
+
+        blackTokens =
+            List.map (createToken Black)
+                [ ( -2, 0 )
+                , ( 0, 2 )
+                , ( 2, -2 )
+                ]
+    in
+    Dict.fromList (redTokens ++ blackTokens)
 
 
 initialModel : Model
@@ -351,7 +364,10 @@ platformView selectedPlatform platform =
 
 platformDestinationView : Platform -> Platform -> G.Shape Msg
 platformDestinationView selected destination =
-    platformShape False |> placeShape destination |> G.makeTransparent 0.6 |> G.notifyTap (ChoosePlatformDestination selected destination)
+    platformShape False
+        |> placeShape destination
+        |> G.makeTransparent 0.6
+        |> G.notifyTap (ChoosePlatformDestination selected destination)
 
 
 tokenColor : Player -> Bool -> G.Color
@@ -398,7 +414,10 @@ tokensView selectedToken tokens =
 
 tokenDestinationView : Token -> Platform -> G.Shape Msg
 tokenDestinationView ( start, player ) destination =
-    tokenShape player False |> placeShape destination |> G.makeTransparent 0.6 |> G.notifyTap (ChooseTokenDestination ( start, player ) destination)
+    tokenShape player False
+        |> placeShape destination
+        |> G.makeTransparent 0.6
+        |> G.notifyTap (ChooseTokenDestination ( start, player ) destination)
 
 
 winnerView : Player -> G.Shape Msg
