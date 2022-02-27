@@ -1,6 +1,7 @@
 module Main exposing (main)
 
 import Basics exposing (cos, sin)
+import Dict exposing (Dict)
 import GraphicSVG as G
 import GraphicSVG.App exposing (NotificationsApp, notificationsApp)
 import Set exposing (Set)
@@ -10,7 +11,7 @@ import Set exposing (Set)
 -- MODEL
 
 
-type Color
+type Player
     = Red
     | Black
 
@@ -28,28 +29,24 @@ type alias Board =
     Set Platform
 
 
-type alias Token =
-    Platform
-
-
-type alias Player =
-    { player : Color, tokens : Set Platform }
+type alias Tokens =
+    Dict Platform Player
 
 
 type alias Model =
-    { currentPlayer : Color
+    { currentPlayer : Player
     , turnPhase : TurnPhase
     , board : Board
-    , players : List Player
+    , tokens : Tokens
     , lastMovedPlatform : Platform
-    , selectedToken : Maybe Token
+    , selectedToken : Maybe Platform
     , selectedPlatform : Maybe Platform
     }
 
 
-colorText : Color -> String
-colorText color =
-    case color of
+playerText : Player -> String
+playerText player =
+    case player of
         Red ->
             "Red"
 
@@ -57,34 +54,14 @@ colorText color =
             "Black"
 
 
-nextPlayer : Color -> Color
-nextPlayer color =
-    case color of
+nextPlayer : Player -> Player
+nextPlayer player =
+    case player of
         Red ->
             Black
 
         Black ->
             Red
-
-
-colorEquals : Color -> Color -> Bool
-colorEquals p1 p2 =
-    case p1 of
-        Red ->
-            case p2 of
-                Red ->
-                    True
-
-                Black ->
-                    False
-
-        Black ->
-            case p2 of
-                Red ->
-                    False
-
-                Black ->
-                    True
 
 
 directions : Set ( Int, Int )
@@ -99,6 +76,11 @@ directions =
         ]
 
 
+platformAt : Board -> Platform -> Bool
+platformAt board platform =
+    Set.member platform board
+
+
 neighbors : Platform -> Set Platform
 neighbors ( x, y ) =
     Set.map (\( dx, dy ) -> ( x + dx, y + dy )) directions
@@ -107,7 +89,7 @@ neighbors ( x, y ) =
 countNeighboringPlatforms : Board -> Platform -> Int
 countNeighboringPlatforms board platform =
     neighbors platform
-        |> Set.intersect board
+        |> Set.filter (platformAt board)
         |> Set.size
 
 
@@ -121,26 +103,26 @@ isPlatformDestination board selected platform =
 
 
 findPlatformDestinations : Board -> Platform -> Set Platform
-findPlatformDestinations board selectedPlatform =
+findPlatformDestinations board platform =
     Set.toList board
         |> List.map neighbors
         |> List.foldl Set.union Set.empty
-        |> Set.filter (isPlatformDestination board selectedPlatform)
+        |> Set.filter (isPlatformDestination board platform)
+        |> Set.remove platform
 
 
-noTokenAt : Platform -> List Player -> Bool
-noTokenAt platform players =
-    players
-        |> List.all (\player -> not (Set.member platform player.tokens))
+tokenAt : Tokens -> Platform -> Bool
+tokenAt tokens platform =
+    Dict.member platform tokens
 
 
-platformIsSelectable : Board -> List Player -> Platform -> Platform -> Bool
-platformIsSelectable board players lastMovedPlatform platform =
-    countNeighboringPlatforms board platform < 5 && noTokenAt platform players && platform /= lastMovedPlatform
+platformIsSelectable : Board -> Tokens -> Platform -> Platform -> Bool
+platformIsSelectable board tokens lastMovedPlatform platform =
+    countNeighboringPlatforms board platform < 5 && not (tokenAt tokens platform) && platform /= lastMovedPlatform
 
 
-checkDirection : Board -> List Player -> Platform -> ( Int, Int ) -> Platform
-checkDirection board players start direction =
+checkDirection : Board -> Tokens -> Platform -> ( Int, Int ) -> Platform
+checkDirection board tokens start direction =
     let
         ( x, y ) =
             start
@@ -148,52 +130,44 @@ checkDirection board players start direction =
         checkedPosition =
             ( x + Tuple.first direction, y + Tuple.second direction )
     in
-    if Set.member checkedPosition board && noTokenAt checkedPosition players then
-        checkDirection board players checkedPosition direction
+    if platformAt board checkedPosition && not (tokenAt tokens checkedPosition) then
+        checkDirection board tokens checkedPosition direction
 
     else
         start
 
 
-findTokenDestinations : Board -> List Player -> Platform -> Set Platform
-findTokenDestinations board players selectedToken =
-    Set.map (checkDirection board players selectedToken) directions
+findTokenDestinations : Board -> Tokens -> Platform -> Set Platform
+findTokenDestinations board tokens token =
+    Set.map (checkDirection board tokens token) directions
+        |> Set.remove token
 
 
-moveToken : Platform -> Platform -> Player -> Player
-moveToken from to player =
-    if Set.member from player.tokens then
-        { player
-            | tokens =
-                player.tokens
-                    |> Set.remove from
-                    |> Set.insert to
-        }
+moveToken : Tokens -> Platform -> Platform -> Tokens
+moveToken tokens from to =
+    case Dict.get from tokens of
+        Just player ->
+            tokens
+                |> Dict.remove from
+                |> Dict.insert to player
 
-    else
-        player
+        Nothing ->
+            tokens
 
 
-checkWinner : List Player -> Maybe Color
-checkWinner players =
-    case players of
-        [] ->
-            Nothing
-
-        player :: rest ->
-            if
-                Set.toList player.tokens
-                    |> List.any (tokenIsWinner player.tokens)
-            then
-                Just player.player
-
-            else
-                checkWinner rest
+checkWinner : Player -> Tokens -> Bool
+checkWinner player tokens =
+    let
+        platforms =
+            Dict.filter (\_ p -> p == player) tokens
+                |> Dict.keys
+    in
+    List.any (tokenIsWinner (Set.fromList platforms)) platforms
 
 
-tokenIsWinner : Set Token -> Token -> Bool
-tokenIsWinner player token =
-    player
+tokenIsWinner : Set Platform -> Platform -> Bool
+tokenIsWinner tokens token =
+    tokens
         |> Set.intersect (neighbors token)
         |> Set.size
         |> (==) 2
@@ -224,25 +198,16 @@ initialBoard =
         ]
 
 
-initialPlayers : List Player
-initialPlayers =
-    [ { player = Red
-      , tokens =
-            Set.fromList
-                [ ( 0, -2 )
-                , ( -2, 2 )
-                , ( 2, 0 )
-                ]
-      }
-    , { player = Black
-      , tokens =
-            Set.fromList
-                [ ( -2, 0 )
-                , ( 0, 2 )
-                , ( 2, -2 )
-                ]
-      }
-    ]
+initialTokens : Tokens
+initialTokens =
+    Dict.fromList
+        [ ( ( 0, -2 ), Red )
+        , ( ( -2, 2 ), Red )
+        , ( ( 2, 0 ), Red )
+        , ( ( -2, 0 ), Black )
+        , ( ( 0, 2 ), Black )
+        , ( ( 2, -2 ), Black )
+        ]
 
 
 initialModel : Model
@@ -250,7 +215,7 @@ initialModel =
     { currentPlayer = Red
     , turnPhase = MoveToken
     , board = initialBoard
-    , players = initialPlayers
+    , tokens = initialTokens
     , lastMovedPlatform = ( 0, 0 )
     , selectedToken = Nothing
     , selectedPlatform = Nothing
@@ -258,8 +223,8 @@ initialModel =
 
 
 type Msg
-    = SelectToken Color Token
-    | ChooseTokenDestination Token Platform
+    = SelectToken Player Platform
+    | ChooseTokenDestination Platform Platform
     | SelectPlatform Platform
     | ChoosePlatformDestination Platform Platform
     | Reset
@@ -275,7 +240,7 @@ update msg model =
         SelectToken player token ->
             case model.turnPhase of
                 MoveToken ->
-                    if colorEquals model.currentPlayer player then
+                    if model.currentPlayer == player then
                         { model | selectedToken = Just token }
 
                     else
@@ -287,27 +252,25 @@ update msg model =
         ChooseTokenDestination from to ->
             let
                 newTokens =
-                    List.map (moveToken from to) model.players
+                    moveToken model.tokens from to
             in
             { model
                 | turnPhase = MovePlatform
-                , players = newTokens
+                , tokens = newTokens
                 , selectedToken = Nothing
             }
 
         SelectPlatform platform ->
             case model.turnPhase of
                 MovePlatform ->
-                    case checkWinner model.players of
-                        Nothing ->
-                            if platformIsSelectable model.board model.players model.lastMovedPlatform platform then
-                                { model | selectedPlatform = Just platform }
+                    if
+                        not (checkWinner model.currentPlayer model.tokens)
+                            || platformIsSelectable model.board model.tokens model.lastMovedPlatform platform
+                    then
+                        { model | selectedPlatform = Just platform }
 
-                            else
-                                model
-
-                        Just _ ->
-                            model
+                    else
+                        model
 
                 MoveToken ->
                     model
@@ -382,7 +345,7 @@ platformDestinationView from to =
         |> G.notifyTap (ChoosePlatformDestination from to)
 
 
-tokenColor : Color -> Bool -> G.Color
+tokenColor : Player -> Bool -> G.Color
 tokenColor player selected =
     case player of
         Red ->
@@ -400,13 +363,13 @@ tokenColor player selected =
                 G.darkCharcoal
 
 
-tokenShape : Color -> Bool -> G.Shape Msg
+tokenShape : Player -> Bool -> G.Shape Msg
 tokenShape player selected =
     G.circle 40 |> G.filled (tokenColor player selected)
 
 
-tokenView : Maybe Platform -> Color -> Platform -> G.Shape Msg
-tokenView selectedToken player platform =
+tokenView : Maybe Platform -> Platform -> Player -> G.Shape Msg
+tokenView selectedToken platform player =
     (case selectedToken of
         Nothing ->
             tokenShape player False
@@ -418,20 +381,14 @@ tokenView selectedToken player platform =
         |> G.notifyTap (SelectToken player platform)
 
 
-playerView : Maybe Platform -> Player -> G.Shape Msg
-playerView selectedToken tokenSet =
-    Set.toList tokenSet.tokens
-        |> List.map (tokenView selectedToken tokenSet.player)
-        |> G.group
-
-
-tokensView : Maybe Platform -> List Player -> G.Shape Msg
+tokensView : Maybe Platform -> Tokens -> G.Shape Msg
 tokensView selectedToken tokens =
-    List.map (playerView selectedToken) tokens
+    Dict.map (tokenView selectedToken) tokens
+        |> Dict.values
         |> G.group
 
 
-tokenDestinationView : Color -> Platform -> Platform -> G.Shape Msg
+tokenDestinationView : Player -> Platform -> Platform -> G.Shape Msg
 tokenDestinationView player from to =
     tokenShape player False
         |> placeShape to
@@ -439,11 +396,11 @@ tokenDestinationView player from to =
         |> G.notifyTap (ChooseTokenDestination from to)
 
 
-winnerView : Color -> G.Shape Msg
+winnerView : Player -> G.Shape Msg
 winnerView player =
     G.group
         [ G.roundedRect 240 120 5 |> G.filled G.white
-        , G.text (colorText player ++ " wins!") |> G.centered |> G.size 32 |> G.filled (tokenColor player False) |> G.move ( 0, 16 )
+        , G.text (playerText player ++ " wins!") |> G.centered |> G.size 32 |> G.filled (tokenColor player False) |> G.move ( 0, 16 )
         , G.group
             [ G.roundedRect 96 48 5 |> G.filled (tokenColor player False)
             , G.text "Retry" |> G.centered |> G.size 24 |> G.filled G.white |> G.move ( 0, -8 )
@@ -468,23 +425,22 @@ view model =
         )
     , tokensView
         model.selectedToken
-        model.players
+        model.tokens
     , G.group
         (case model.selectedToken of
             Nothing ->
                 []
 
             Just selected ->
-                findTokenDestinations model.board model.players selected
+                findTokenDestinations model.board model.tokens selected
                     |> Set.toList
                     |> List.map (tokenDestinationView model.currentPlayer selected)
         )
-    , case checkWinner model.players of
-        Nothing ->
-            G.group []
+    , if checkWinner model.currentPlayer model.tokens then
+        winnerView model.currentPlayer
 
-        Just player ->
-            winnerView player
+      else
+        G.group []
     ]
         |> G.collage 1000 1000
 
