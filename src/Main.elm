@@ -71,6 +71,26 @@ nextPlayer player =
             Red
 
 
+playerEquals : Player -> Player -> Bool
+playerEquals p1 p2 =
+    case p1 of
+        Red ->
+            case p2 of
+                Red ->
+                    True
+
+                Black ->
+                    False
+
+        Black ->
+            case p2 of
+                Red ->
+                    False
+
+                Black ->
+                    True
+
+
 directions : Set ( Int, Int )
 directions =
     Set.fromList
@@ -95,30 +115,32 @@ countNeighboringPlatforms board platform =
         |> Set.size
 
 
-playerEquals : Player -> Player -> Bool
-playerEquals p1 p2 =
-    case p1 of
-        Red ->
-            case p2 of
-                Red ->
-                    True
+isPlatformDestination : Board -> Platform -> Platform -> Bool
+isPlatformDestination board selected platform =
+    let
+        neighborCount =
+            countNeighboringPlatforms (Set.remove selected board) platform
+    in
+    neighborCount >= 2 && neighborCount < 5
 
-                Black ->
-                    False
 
-        Black ->
-            case p2 of
-                Red ->
-                    False
-
-                Black ->
-                    True
+findPlatformDestinations : Board -> Platform -> Set Platform
+findPlatformDestinations board selectedPlatform =
+    Set.toList board
+        |> List.map neighbors
+        |> List.foldl Set.union Set.empty
+        |> Set.filter (isPlatformDestination board selectedPlatform)
 
 
 noTokenAt : Platform -> Tokens -> Bool
 noTokenAt platform tokens =
     tokens
         |> List.all (\ts -> not (Set.member platform ts.platforms))
+
+
+platformIsSelectable : Board -> Tokens -> Platform -> Platform -> Bool
+platformIsSelectable board tokens lastMovedPlatform platform =
+    countNeighboringPlatforms board platform < 5 && noTokenAt platform tokens && platform /= lastMovedPlatform
 
 
 checkDirection : Board -> Tokens -> Platform -> ( Int, Int ) -> Platform
@@ -179,28 +201,6 @@ tokenIsWinner tokens token =
         |> Set.intersect (neighbors token)
         |> Set.size
         |> (==) 2
-
-
-platformIsSelectable : Board -> Tokens -> Platform -> Platform -> Bool
-platformIsSelectable board tokens lastMovedPlatform platform =
-    countNeighboringPlatforms board platform < 5 && noTokenAt platform tokens && platform /= lastMovedPlatform
-
-
-isPlatformDestination : Board -> Platform -> Platform -> Bool
-isPlatformDestination board selected platform =
-    let
-        neighborCount =
-            countNeighboringPlatforms (Set.remove selected board) platform
-    in
-    neighborCount >= 2 && neighborCount < 5
-
-
-findPlatformDestinations : Board -> Platform -> Set Platform
-findPlatformDestinations board selectedPlatform =
-    Set.toList board
-        |> List.map neighbors
-        |> List.foldl Set.union Set.empty
-        |> Set.filter (isPlatformDestination board selectedPlatform)
 
 
 initialBoard : Board
