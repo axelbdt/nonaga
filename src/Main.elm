@@ -116,9 +116,9 @@ tokenAt tokens platform =
     Dict.member platform tokens
 
 
-platformIsSelectable : Board -> Tokens -> Platform -> Platform -> Bool
-platformIsSelectable board tokens lastMovedPlatform platform =
-    countNeighboringPlatforms board platform < 5 && not (tokenAt tokens platform) && platform /= lastMovedPlatform
+platformIsSelectable : Board -> Tokens -> Platform -> Bool
+platformIsSelectable board tokens platform =
+    countNeighboringPlatforms board platform < 5 && not (tokenAt tokens platform)
 
 
 checkDirection : Board -> Tokens -> Platform -> ( Int, Int ) -> Platform
@@ -265,7 +265,8 @@ update msg model =
                 MovePlatform ->
                     if
                         not (checkWinner model.currentPlayer model.tokens)
-                            || platformIsSelectable model.board model.tokens model.lastMovedPlatform platform
+                            && platformIsSelectable model.board model.tokens platform
+                            && (platform /= model.lastMovedPlatform)
                     then
                         { model | selectedPlatform = Just platform }
 
