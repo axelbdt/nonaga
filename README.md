@@ -2,4 +2,4 @@
 
 [Rulebook](https://www.steffen-spiele.de/fileadmin/media/Spiele/Nonaga/Nonaga_EN.pdf)
 
-[Play on Ellie](https://ellie-app.com/gMD3MFyMDmfa1)
+[Play on Ellie](https://ellie-app.com/gQFWYfTr2rha1)
