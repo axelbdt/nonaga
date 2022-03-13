@@ -99,7 +99,7 @@ isPlatformDestination board selected platform =
         neighborCount =
             countNeighboringPlatforms (Set.remove selected board) platform
     in
-    neighborCount >= 2 && neighborCount < 5
+    not (Set.member platform board) && neighborCount >= 2 && neighborCount < 5
 
 
 findPlatformDestinations : Board -> Platform -> Set Platform
